@@ -7,14 +7,39 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
 }
 
 // Fetch users from the database
-$stmt = $pdo->query("SELECT e.employee_id AS id, e.first_name, e.middle_name, e.last_name, e.purok, e.street, e.barangay, e.city, e.postal_code, e.birthdate, r.role_id, r.role_name, e.email, e.status
-                      FROM employees e
-                      JOIN roles r ON e.role_id = r.role_id");
+$stmt = $pdo->query("
+    SELECT 
+        e.employee_id AS id,
+        e.first_name, e.middle_name, e.last_name,
+        e.purok, e.street, e.barangay, e.city, e.postal_code,
+        e.birthdate, r.role_id, r.role_name,
+        e.email, e.status,
+        'Employee' AS user_type
+    FROM employees e
+    JOIN roles r ON e.role_id = r.role_id
+
+    UNION ALL
+
+    SELECT 
+        c.customer_id AS id,
+        c.first_name, c.middle_name, c.last_name,
+        c.purok, c.street, c.barangay, c.city, c.postal_code,
+        c.birthdate, r.role_id, r.role_name,
+        c.email, c.status,
+        'Customer' AS user_type
+    FROM customer c
+    JOIN roles r ON c.role_id = r.role_id
+");
+
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch roles for the dropdown
-$roleStmt = $pdo->query("SELECT role_id, role_name FROM roles");
+$roleStmt = $pdo->query("SELECT role_id, role_name, description FROM roles");
 $roles = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Separate roles by type
+$employeeRoles = array_filter($roles, fn($r) => $r['description'] === 'Employee');
+$customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer');
 ?>
 
 <!DOCTYPE html>
@@ -37,7 +62,29 @@ $roles = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </nav>
         <div class="container mt-4">
-            <h2 class="mb-4">Manage Users</h2>
+            <div class="d-flex justify-content-between mb-3">
+                <h2>Manage Users</h2>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectUserTypeModal">
+                    <i class="fas fa-user-plus"></i> Add User
+                </button>
+            </div>
+
+            <?php if (isset($_SESSION['success'])): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($_SESSION['success']) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php unset($_SESSION['success']); ?>
+            <?php endif; ?>
+
+            <?php if (isset($_SESSION['error'])): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($_SESSION['error']) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php unset($_SESSION['error']); ?>
+            <?php endif; ?>
+
             <table class="table table-striped table-bordered">
                 <thead class="table-dark">
                     <tr>
@@ -165,6 +212,119 @@ $roles = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <!-- Select User Type Modal -->
+            <div class="modal fade" id="selectUserTypeModal" tabindex="-1" aria-labelledby="selectUserTypeModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add New User</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <button class="btn btn-outline-primary w-100 mb-2" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                                Add Employee
+                            </button>
+                            <button class="btn btn-outline-success w-100" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
+                                Add Customer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Employee Modal -->
+            <div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <form action="./includes/add_employee.php" method="POST">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Employee</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row g-2">
+                                    <div class="col-md-4"><input name="first_name" class="form-control" placeholder="First Name" required></div>
+                                    <div class="col-md-4"><input name="middle_name" class="form-control" placeholder="Middle Name"></div>
+                                    <div class="col-md-4"><input name="last_name" class="form-control" placeholder="Last Name" required></div>
+                                    <div class="col-md-4"><input name="purok" class="form-control" placeholder="Purok"></div>
+                                    <div class="col-md-4"><input name="street" class="form-control" placeholder="Street"></div>
+                                    <div class="col-md-4"><input name="barangay" class="form-control" placeholder="Barangay" required></div>
+                                    <div class="col-md-4"><input name="city" class="form-control" placeholder="City" required></div>
+                                    <div class="col-md-4"><input name="postal_code" class="form-control" placeholder="Postal Code"></div>
+                                    <div class="col-md-4"><input name="birthdate" type="date" class="form-control" required></div>
+                                    <div class="col-md-6"><input name="phone_num" class="form-control" placeholder="Phone Number" required></div>
+                                    <div class="col-md-6"><input name="email" class="form-control" placeholder="Email" required></div>
+                                    <div class="col-md-6">
+                                        <select name="role_id" class="form-select" required>
+                                            <option disabled selected>Select Role</option>
+                                            <?php foreach ($employeeRoles as $role): ?>
+                                                <option value="<?= $role['role_id'] ?>"><?= htmlspecialchars($role['role_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <select name="status" class="form-select">
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="submit" class="btn btn-success">Add Employee</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Add Customer Modal -->
+            <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-labelledby="addCustomerModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <form action="./includes/add_customer.php" method="POST">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Customer</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row g-2">
+                                    <div class="col-md-4"><input name="first_name" class="form-control" placeholder="First Name" required></div>
+                                    <div class="col-md-4"><input name="middle_name" class="form-control" placeholder="Middle Name"></div>
+                                    <div class="col-md-4"><input name="last_name" class="form-control" placeholder="Last Name" required></div>
+                                    <div class="col-md-4"><input name="purok" class="form-control" placeholder="Purok"></div>
+                                    <div class="col-md-4"><input name="street" class="form-control" placeholder="Street"></div>
+                                    <div class="col-md-4"><input name="barangay" class="form-control" placeholder="Barangay" required></div>
+                                    <div class="col-md-4"><input name="city" class="form-control" placeholder="City" required></div>
+                                    <div class="col-md-4"><input name="postal_code" class="form-control" placeholder="Postal Code"></div>
+                                    <div class="col-md-4"><input name="birthdate" type="date" class="form-control" required></div>
+                                    <div class="col-md-6"><input name="phone_num" class="form-control" placeholder="Phone Number" required></div>
+                                    <div class="col-md-6"><input name="email" class="form-control" placeholder="Email" required></div>
+                                    <div class="col-md-6">
+                                        <select name="role_id" class="form-select" required>
+                                            <option disabled selected>Select Role</option>
+                                            <?php foreach ($customerRoles as $role): ?>
+                                                <option value="<?= $role['role_id'] ?>"><?= htmlspecialchars($role['role_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <select name="status" class="form-select">
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="submit" class="btn btn-success">Add Customer</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
     </div>
 
