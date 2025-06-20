@@ -166,7 +166,9 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                                     <div class="col-md-6">
                                                         <label class="form-label">Role</label>
                                                         <select class="form-select" name="role_id" required>
-                                                            <?php foreach ($roles as $role): ?>
+                                                            <?php 
+                                                            $availableRoles = ($user['user_type'] === 'Customer') ? $customerRoles : $employeeRoles;
+                                                            foreach ($availableRoles as $role): ?>
                                                                 <option value="<?= $role['role_id'] ?>" <?= $role['role_id'] == $user['role_id'] ? 'selected' : '' ?>>
                                                                     <?= htmlspecialchars($role['role_name']) ?>
                                                                 </option>
