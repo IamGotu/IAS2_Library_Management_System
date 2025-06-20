@@ -70,9 +70,9 @@ if (isset($_POST['login'])) {
             ];
 
             if (in_array($role, $employeeRoles)) {
-                header("Location: /./employee/dashboard.php");
+                header("Location: ./employee/dashboard.php");
             } elseif (in_array($role, $customerRoles)) {
-                header("Location: ../customer/dashboard.php");
+                header("Location: ./customer/dashboard.php");
             } else {
                 $_SESSION['role_error'] = "Access denied. No valid role assigned.";
                 header("Location: login.php");
