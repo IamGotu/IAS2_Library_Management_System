@@ -197,7 +197,7 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                             Are you sure you want to delete this user?
                                         </div>
                                         <div class="modal-footer">
-                                            <form action="delete_user.php" method="POST">
+                                            <form action="./includes/delete_user.php" method="POST">
                                                 <input type="hidden" name="id" value="<?= $user['id'] ?>">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                                 <button type="submit" class="btn btn-danger">Delete</button>
