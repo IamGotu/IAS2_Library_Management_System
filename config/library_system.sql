@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 20, 2025 at 11:20 AM
+-- Generation Time: Jun 20, 2025 at 01:33 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -39,7 +39,7 @@ CREATE TABLE `customer` (
   `barangay` varchar(255) NOT NULL,
   `city` varchar(255) NOT NULL,
   `postal_code` varchar(255) DEFAULT NULL,
-  `phone_num` bigint(20) NOT NULL,
+  `phone_num` varchar(225) NOT NULL,
   `birthdate` date NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
@@ -63,13 +63,20 @@ CREATE TABLE `employees` (
   `barangay` varchar(255) NOT NULL,
   `city` varchar(255) NOT NULL,
   `postal_code` varchar(255) DEFAULT NULL,
-  `phone_num` int(255) NOT NULL,
+  `phone_num` varchar(255) NOT NULL,
   `birthdate` date NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role_id` int(11) NOT NULL,
   `status` enum('Active','Inactive') NOT NULL DEFAULT 'Active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `employees`
+--
+
+INSERT INTO `employees` (`employee_id`, `first_name`, `middle_name`, `last_name`, `purok`, `street`, `barangay`, `city`, `postal_code`, `phone_num`, `birthdate`, `email`, `password`, `role_id`, `status`) VALUES
+(1, 'Mark John', 'Rama', 'Jopia', 'Lansang Village', 'Block 3', 'Sinawal', 'General Santos City', '9500', '09514810354', '2001-06-14', 'admin@gmail.com', '$2y$10$9KEsrSloD0uWNfbOqUGwyOqY4clzpQIdY9WrVXH9.Dfh1jBPwDgm6', 1, 'Active');
 
 -- --------------------------------------------------------
 
@@ -97,6 +104,22 @@ CREATE TABLE `roles` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
+-- Dumping data for table `roles`
+--
+
+INSERT INTO `roles` (`role_id`, `role_name`, `description`) VALUES
+(1, 'Library Admin', 'Employee'),
+(2, 'Librarian', 'Employee'),
+(3, 'Assistant Librarian', 'Employee'),
+(4, 'Volunteer', 'Employee'),
+(5, 'Content Curator', 'Employee'),
+(6, 'IT Personnel', 'Employee'),
+(7, 'Member (Youth)', 'Customer'),
+(8, 'Member (Adult)', 'Customer'),
+(9, 'Member (Senior)', 'Customer'),
+(10, 'Researcher', 'Customer');
+
+--
 -- Indexes for dumped tables
 --
 
@@ -106,6 +129,7 @@ CREATE TABLE `roles` (
 ALTER TABLE `customer`
   ADD PRIMARY KEY (`customer_id`),
   ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `phone_num` (`phone_num`),
   ADD KEY `customer_role` (`role_id`);
 
 --
@@ -114,6 +138,7 @@ ALTER TABLE `customer`
 ALTER TABLE `employees`
   ADD PRIMARY KEY (`employee_id`),
   ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `phone_num` (`phone_num`),
   ADD KEY `employee_role` (`role_id`);
 
 --
@@ -145,7 +170,7 @@ ALTER TABLE `customer`
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `employee_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `employee_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `permissions`
@@ -157,7 +182,7 @@ ALTER TABLE `permissions`
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Constraints for dumped tables
