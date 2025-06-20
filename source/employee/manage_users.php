@@ -103,12 +103,16 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                         <td><?= htmlspecialchars($user['role_name']) ?></td>
                         <td><?= htmlspecialchars($user['status']) ?></td>
                         <td>
-                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal<?= $user['id'] ?>">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $user['id'] ?>">
-                                <i class="fas fa-trash-alt"></i> Delete
-                            </button>
+                            <?php if ($user['user_type'] === 'Employee' && $user['id'] == $_SESSION['user_id']): ?>
+                                <span class="text-muted">You</span>
+                            <?php else: ?>
+                                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal<?= $user['id'] ?>">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $user['id'] ?>">
+                                    <i class="fas fa-trash-alt"></i> Delete
+                                </button>
+                            <?php endif; ?>
 
                             <!-- Edit Modal -->
                             <div class="modal fade" id="editModal<?= $user['id'] ?>" tabindex="-1" aria-labelledby="editModalLabel<?= $user['id'] ?>" aria-hidden="true">
