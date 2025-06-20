@@ -125,6 +125,7 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                         <div class="modal-body">
                                             <form action="./includes/edit_user.php" method="POST">
                                                 <input type="hidden" name="id" value="<?= $user['id'] ?>">
+                                                <input type="hidden" name="user_type" value="<?= $user['user_type'] ?>">
                                                 <div class="row g-3">
                                                     <div class="col-md-4">
                                                         <label class="form-label">First Name</label>
