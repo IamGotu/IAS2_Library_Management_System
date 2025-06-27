@@ -7,6 +7,20 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     exit;
 }
 
+function logActivity($pdo, $userId, $role, $actionDesc) {
+    // Fetch full name based on user role
+    if ($role === 'employee') {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
+    } else {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM customer WHERE customer_id = ?");
+    }
+    $stmt->execute([$userId]);
+    $fullName = trim(preg_replace('/\s+/', ' ', $stmt->fetchColumn()));
+
+    $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_role, full_name, action) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$userId, $role, $fullName, $actionDesc]);
+}
+
 $filter = $_GET['filter'] ?? 'books';
 
 // Handle form submissions for Reserve/Borrow/Return/Cancel Reservation
@@ -15,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $materialId = (int)$_POST['material_id'];
     $customerId = (int)$_POST['customer_id'];
     $action = $_POST['action'];
+
+    $logUserId = $_SESSION['user_id'];
+    $logUserRole = $_SESSION['user_role'];
 
     // Validate Researcher for Archival
     if ($materialType === 'research' && ($action === 'Reserve' || $action === 'Borrow')) {
@@ -29,11 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'Reserve') {
-        // Insert reserve transaction
         $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, ?)");
         $stmt->execute([$materialType, $materialId, $customerId, $action]);
+        logActivity($pdo, $logUserId, $logUserRole, "Reserved material ID $materialId for customer ID $customerId");
     } elseif ($action === 'Borrow') {
-        // Check availability before borrow
         if ($materialType === 'book') {
             $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0");
             $stmtCheck->execute([$materialId]);
@@ -42,36 +58,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 header("Location: ?filter=$filter");
                 exit;
             }
-            // Decrement available count
             $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available - 1 WHERE id = ?");
             $stmtUpdate->execute([$materialId]);
         }
-        // Insert borrow transaction
         $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, ?)");
         $stmt->execute([$materialType, $materialId, $customerId, $action]);
+        logActivity($pdo, $logUserId, $logUserRole, "Borrowed material ID $materialId for customer ID $customerId");
     } elseif ($action === 'Return') {
-        // Find the borrow transaction and mark return by inserting a Return action
         $stmtReturn = $pdo->prepare("SELECT transaction_id FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Borrow' ORDER BY action_date DESC LIMIT 1");
         $stmtReturn->execute([$materialType, $materialId, $customerId]);
         $borrowTransaction = $stmtReturn->fetchColumn();
         if ($borrowTransaction) {
-            // Insert return transaction
             $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, 'Return')");
             $stmt->execute([$materialType, $materialId, $customerId]);
-            // Increment available if book
             if ($materialType === 'book') {
                 $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available + 1 WHERE id = ?");
                 $stmtUpdate->execute([$materialId]);
             }
+            logActivity($pdo, $logUserId, $logUserRole, "Returned material ID $materialId by customer ID $customerId");
         } else {
             $_SESSION['error'] = "No borrow record found for return.";
             header("Location: ?filter=$filter");
             exit;
         }
     } elseif ($action === 'Cancel Reservation') {
-        // Find the reserve transaction and remove it
         $stmtCancel = $pdo->prepare("DELETE FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Reserve' LIMIT 1");
         $stmtCancel->execute([$materialType, $materialId, $customerId]);
+        logActivity($pdo, $logUserId, $logUserRole, "Cancelled reservation of material ID $materialId by customer ID $customerId");
     }
 
     $_SESSION['success'] = "$action successful.";
@@ -111,8 +124,8 @@ foreach ($transactions as $tr) {
     $key = $tr['material_type'].'_'.$tr['material_id'].'_'.$tr['customer_id'];
     $transMap[$key][] = $tr;
 }
-
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
