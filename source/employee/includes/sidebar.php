@@ -24,10 +24,19 @@
             <a class="nav-link text-white" href="../employee/borrow_history.php"><i class="fa-solid fa-history me-2">‌</i>Borrow History</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-history me-2">‌</i>Renew Loan Material</a>
+            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-calendar me-2">‌</i>Renew Loan Material</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/manage_events.php"><i class="fa-solid fa-calendar-days me-2">‌</i>Manage Events</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/rate.php"><i class="fa-solid fa-pen me-2">‌</i>Material Rating</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="../employee/activity_logs.php"><i class="fa-solid fa-business-time me-2">‌</i>Activity Logs</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/system_maintenance.php"><i class="fa-solid fa-bug me-2">‌</i>System Maintenance</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
