@@ -7,34 +7,37 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
+    $rand = rand(1000, 9999);
+    $type = $_POST['material_type'];
+    $title = "$type Title $rand";
+    $author = "$type Author $rand";
+    $isbn = "ISBN$rand";
+    $publisher = "$type Publisher $rand";
+    $year = date("Y");
+    $quantity = 5;
+    $available = 5;
+    $status = 'Available';
+
+    $stmt = $pdo->prepare("INSERT INTO books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
+
+    $_SESSION['success'] = "$type '$title' added successfully.";
+    header("Location: materials_management.php");
+    exit;
+}
+
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
     $bookId = isset($_GET['book_id']) ? (int)$_GET['book_id'] : null;
 
     switch ($action) {
-        case 'add':
-            $rand = rand(1000, 9999);
-            $title = "Simulated Book $rand";
-            $author = "SimAuthor $rand";
-            $isbn = "ISBN$rand";
-            $publisher = "Publisher $rand";
-            $year = date("Y");
-            $quantity = 5;
-            $available = 5;
-            $status = 'Available';
-
-            $stmt = $pdo->prepare("INSERT INTO books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
-
-            $_SESSION['success'] = "Simulated Book '$title' added successfully.";
-            break;
-
         case 'edit':
             if ($bookId) {
-                $newTitle = "Edited Title " . rand(1000, 9999);
+                $newTitle = "Edited Material " . rand(1000, 9999);
                 $stmt = $pdo->prepare("UPDATE books SET title = ? WHERE book_id = ?");
                 $stmt->execute([$newTitle, $bookId]);
-                $_SESSION['success'] = "Book ID $bookId updated to '$newTitle'.";
+                $_SESSION['success'] = "Material ID $bookId updated to '$newTitle'.";
             }
             break;
 
@@ -42,51 +45,23 @@ if (isset($_GET['action'])) {
             if ($bookId) {
                 $stmt = $pdo->prepare("DELETE FROM books WHERE book_id = ?");
                 $stmt->execute([$bookId]);
-                $_SESSION['success'] = "Book ID $bookId deleted successfully.";
-            }
-            break;
-
-        case 'borrow':
-            if ($bookId) {
-                $stmt = $pdo->prepare("SELECT * FROM books WHERE book_id = ? AND available > 0 AND status = 'Requested'");
-                $stmt->execute([$bookId]);
-                $book = $stmt->fetch();
-                if ($book) {
-                    $pdo->prepare("UPDATE books SET available = available - 1, status = 'Borrowed' WHERE book_id = ?")->execute([$bookId]);
-                    $_SESSION['success'] = "Book ID $bookId borrowed successfully.";
-                } else {
-                    $_SESSION['error'] = "Book ID $bookId is not available or not requested for borrowing.";
-                }
-            }
-            break;
-
-        case 'return':
-            if ($bookId) {
-                $stmt = $pdo->prepare("SELECT * FROM books WHERE book_id = ? AND status = 'Borrowed'");
-                $stmt->execute([$bookId]);
-                $book = $stmt->fetch();
-                if ($book) {
-                    $pdo->prepare("UPDATE books SET available = available + 1, status = 'Available' WHERE book_id = ?")->execute([$bookId]);
-                    $_SESSION['success'] = "Book ID $bookId returned successfully.";
-                } else {
-                    $_SESSION['error'] = "Book ID $bookId was not borrowed.";
-                }
+                $_SESSION['success'] = "Material ID $bookId deleted successfully.";
             }
             break;
     }
-    header("Location: book_management.php");
+
+    header("Location: materials_management.php");
     exit;
 }
 
 $stmt = $pdo->query("SELECT * FROM books");
 $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manage Books</title>
+    <title>Materials Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -104,8 +79,10 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <div class="container mt-4">
             <div class="d-flex justify-content-between mb-3">
-                <h2>Book Management</h2>
-                <a href="?action=add" class="btn btn-success"><i class="fas fa-plus"></i> Add Book</a>
+                <h2>Materials Management</h2>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectMaterialTypeModal">
+                    <i class="fas fa-plus"></i> Add Material
+                </button>
             </div>
 
             <?php if (isset($_SESSION['success'])): ?>
@@ -150,8 +127,6 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <td>
                                 <a href="?action=edit&book_id=<?= $book['book_id'] ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
                                 <a href="?action=delete&book_id=<?= $book['book_id'] ?>" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
-                                <a href="?action=borrow&book_id=<?= $book['book_id'] ?>" class="btn btn-primary btn-sm"><i class="fas fa-book"></i></a>
-                                <a href="?action=return&book_id=<?= $book['book_id'] ?>" class="btn btn-info btn-sm"><i class="fas fa-undo"></i></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -160,6 +135,33 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
+
+<!-- Select Material Type Modal -->
+<div class="modal fade" id="selectMaterialTypeModal" tabindex="-1" aria-labelledby="selectMaterialTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Material</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <form method="POST" action="">
+                    <input type="hidden" name="material_type" value="Book">
+                    <button type="submit" class="btn btn-outline-primary w-100 mb-2" data-bs-dismiss="modal">Add Book</button>
+                </form>
+                <form method="POST" action="">
+                    <input type="hidden" name="material_type" value="Digital Media">
+                    <button type="submit" class="btn btn-outline-success w-100 mb-2" data-bs-dismiss="modal">Add Digital Media</button>
+                </form>
+                <form method="POST" action="">
+                    <input type="hidden" name="material_type" value="Archival">
+                    <button type="submit" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Add Archival</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
