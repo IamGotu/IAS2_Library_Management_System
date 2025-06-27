@@ -1,5 +1,5 @@
 <?php
-$plain = 'admin123';
-$hash = '$2y$10$xAe.E9rbbJFq..f9FfTbH.TLMNg8zLoVbKQwLUiiXSg7gQ6ZVih0O';
+$plain = 'itpersonnel123';
+$hash = '$2y$10$2olH3zhdByowU4Ij46DEpObqNVQ9/BcBvOvOx6qMLtshm7zlXt0sW';
 var_dump(password_verify($plain, $hash));
 ?>
