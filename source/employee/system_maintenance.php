@@ -21,9 +21,6 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Log page access
-logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Accessed System Maintenance");
-
 // Generate random backup history data
 function generateBackupHistory($count = 10) {
     $backups = [];
