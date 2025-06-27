@@ -10,42 +10,77 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
     $rand = rand(1000, 9999);
     $type = $_POST['material_type'];
-    $title = "$type Title $rand";
-    $author = "$type Author $rand";
-    $isbn = "ISBN$rand";
-    $publisher = "$type Publisher $rand";
     $year = date("Y");
-    $quantity = 5;
-    $available = 5;
     $status = 'Available';
 
-    $stmt = $pdo->prepare("INSERT INTO books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
+    $pdo->beginTransaction();
+    try {
+        switch ($type) {
+            case 'Book':
+                $title = "Book Title $rand";
+                $author = "Book Author $rand";
+                $isbn = "ISBN$rand";
+                $publisher = "Book Publisher $rand";
+                $quantity = 5;
+                $available = 5;
 
-    $_SESSION['success'] = "$type '$title' added successfully.";
+                $stmt = $pdo->prepare("INSERT INTO material_books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
+                break;
+
+            case 'Digital Media':
+                $title = "Digital Media Title $rand";
+                $author = "Digital Media Author $rand";
+                $isbn = "ISBN$rand";
+                $publisher = "Digital Media Publisher $rand";
+                $media_type = 'eBook';
+
+                $stmt = $pdo->prepare("INSERT INTO material_digital_media (title, author, isbn, publisher, year_published, media_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $author, $isbn, $publisher, $year, $media_type, $status]);
+                break;
+
+            case 'Archival':
+                $title = "Archival Title $rand";
+                $author = "Archival Author $rand";
+                $isbn = "ISBN$rand";
+                $publisher = "Archival Publisher $rand";
+                $description = "Archived material description for $title";
+
+                $stmt = $pdo->prepare("INSERT INTO material_research (title, author, isbn, publisher, year_published, description, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $author, $isbn, $publisher, $year, $description, $status]);
+                break;
+        }
+
+        $pdo->commit();
+        $_SESSION['success'] = "$type '$title' added successfully.";
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['error'] = "Error adding $type: " . $e->getMessage();
+    }
     header("Location: materials_management.php");
     exit;
 }
 
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
-    $bookId = isset($_GET['book_id']) ? (int)$_GET['book_id'] : null;
+    $materialId = isset($_GET['id']) ? (int)$_GET['id'] : null;
+    $table = $_GET['table'] ?? '';
 
     switch ($action) {
         case 'edit':
-            if ($bookId) {
+            if ($materialId && $table) {
                 $newTitle = "Edited Material " . rand(1000, 9999);
-                $stmt = $pdo->prepare("UPDATE books SET title = ? WHERE book_id = ?");
-                $stmt->execute([$newTitle, $bookId]);
-                $_SESSION['success'] = "Material ID $bookId updated to '$newTitle'.";
+                $stmt = $pdo->prepare("UPDATE $table SET title = ? WHERE id = ?");
+                $stmt->execute([$newTitle, $materialId]);
+                $_SESSION['success'] = "Material ID $materialId updated to '$newTitle'.";
             }
             break;
 
         case 'delete':
-            if ($bookId) {
-                $stmt = $pdo->prepare("DELETE FROM books WHERE book_id = ?");
-                $stmt->execute([$bookId]);
-                $_SESSION['success'] = "Material ID $bookId deleted successfully.";
+            if ($materialId && $table) {
+                $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
+                $stmt->execute([$materialId]);
+                $_SESSION['success'] = "Material ID $materialId deleted successfully.";
             }
             break;
     }
@@ -54,8 +89,13 @@ if (isset($_GET['action'])) {
     exit;
 }
 
-$stmt = $pdo->query("SELECT * FROM books");
-$books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmtBooks = $pdo->query("SELECT * FROM material_books");
+$stmtDigital = $pdo->query("SELECT * FROM material_digital_media");
+$stmtResearch = $pdo->query("SELECT * FROM material_research");
+
+$books = $stmtBooks->fetchAll(PDO::FETCH_ASSOC);
+$digitals = $stmtDigital->fetchAll(PDO::FETCH_ASSOC);
+$research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -101,6 +141,7 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
+            <h4>Books</h4>
             <table class="table table-striped table-bordered">
                 <thead class="table-dark">
                     <tr>
@@ -125,8 +166,74 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <td><?= htmlspecialchars($book['available']) ?></td>
                             <td><?= htmlspecialchars($book['status']) ?></td>
                             <td>
-                                <a href="?action=edit&book_id=<?= $book['book_id'] ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                <a href="?action=delete&book_id=<?= $book['book_id'] ?>" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <h4>Digital Media</h4>
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>ISBN</th>
+                        <th>Publisher</th>
+                        <th>Year</th>
+                        <th>Media Type</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($digitals as $media): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($media['title']) ?></td>
+                            <td><?= htmlspecialchars($media['author']) ?></td>
+                            <td><?= htmlspecialchars($media['isbn']) ?></td>
+                            <td><?= htmlspecialchars($media['publisher']) ?></td>
+                            <td><?= htmlspecialchars($media['year_published']) ?></td>
+                            <td><?= htmlspecialchars($media['media_type']) ?></td>
+                            <td><?= htmlspecialchars($media['status']) ?></td>
+                            <td>
+                                <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <h4>Archival / Research</h4>
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>ISBN</th>
+                        <th>Publisher</th>
+                        <th>Year</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($research as $item): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($item['title']) ?></td>
+                            <td><?= htmlspecialchars($item['author']) ?></td>
+                            <td><?= htmlspecialchars($item['isbn']) ?></td>
+                            <td><?= htmlspecialchars($item['publisher']) ?></td>
+                            <td><?= htmlspecialchars($item['year_published']) ?></td>
+                            <td><?= htmlspecialchars($item['description']) ?></td>
+                            <td><?= htmlspecialchars($item['status']) ?></td>
+                            <td>
+                                <a href="?action=edit&id=<?= $item['id'] ?>&table=material_research" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                <a href="?action=delete&id=<?= $item['id'] ?>&table=material_research" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
