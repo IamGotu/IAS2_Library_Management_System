@@ -12,7 +12,7 @@
             <a class="nav-link text-white" href="../employee/manage_users.php"><i class="fas fa-users me-2"></i>Manage Users</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/book_management.php"><i class="fas fa-sign-out-alt me-2"></i>Book Management</a>
+            <a class="nav-link text-white" href="../employee/book_management.php"><i class="fas fa-book me-2"></i>Book Management</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
