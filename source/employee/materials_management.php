@@ -89,14 +89,23 @@ if (isset($_GET['action'])) {
     exit;
 }
 
-$stmtBooks = $pdo->query("SELECT * FROM material_books");
-$stmtDigital = $pdo->query("SELECT * FROM material_digital_media");
-$stmtResearch = $pdo->query("SELECT * FROM material_research");
+$filter = $_GET['filter'] ?? 'books';
+$books = $digitals = $research = [];
 
-$books = $stmtBooks->fetchAll(PDO::FETCH_ASSOC);
-$digitals = $stmtDigital->fetchAll(PDO::FETCH_ASSOC);
-$research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
+if ($filter === 'books') {
+    $stmtBooks = $pdo->query("SELECT * FROM material_books");
+    $books = $stmtBooks->fetchAll(PDO::FETCH_ASSOC);
+}
+if ($filter === 'digital') {
+    $stmtDigital = $pdo->query("SELECT * FROM material_digital_media");
+    $digitals = $stmtDigital->fetchAll(PDO::FETCH_ASSOC);
+}
+if ($filter === 'archival') {
+    $stmtResearch = $pdo->query("SELECT * FROM material_research");
+    $research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,7 +116,6 @@ $research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 <div class="d-flex">
-
     <?php include './includes/sidebar.php'; ?>
 
     <div class="flex-grow-1">
@@ -123,6 +131,12 @@ $research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
                 <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectMaterialTypeModal">
                     <i class="fas fa-plus"></i> Add Material
                 </button>
+            </div>
+
+            <div class="btn-group mb-3" role="group">
+                <a href="?filter=books" class="btn btn-outline-primary <?= $filter === 'books' ? 'active' : '' ?>">Books</a>
+                <a href="?filter=digital" class="btn btn-outline-success <?= $filter === 'digital' ? 'active' : '' ?>">Digital Media</a>
+                <a href="?filter=archival" class="btn btn-outline-warning <?= $filter === 'archival' ? 'active' : '' ?>">Archival</a>
             </div>
 
             <?php if (isset($_SESSION['success'])): ?>
@@ -141,104 +155,96 @@ $research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <h4>Books</h4>
-            <table class="table table-striped table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Title</th>
-                        <th>Author</th>
-                        <th>ISBN</th>
-                        <th>Publisher</th>
-                        <th>Year</th>
-                        <th>Available</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($books as $book): ?>
+            <?php if ($filter === 'books'): ?>
+                <h4>Books</h4>
+                <table class="table table-bordered">
+                    <thead class="table-dark">
                         <tr>
-                            <td><?= htmlspecialchars($book['title']) ?></td>
-                            <td><?= htmlspecialchars($book['author']) ?></td>
-                            <td><?= htmlspecialchars($book['isbn']) ?></td>
-                            <td><?= htmlspecialchars($book['publisher']) ?></td>
-                            <td><?= htmlspecialchars($book['year_published']) ?></td>
-                            <td><?= htmlspecialchars($book['available']) ?></td>
-                            <td><?= htmlspecialchars($book['status']) ?></td>
-                            <td>
-                                <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
-                            </td>
+                            <th>Title</th>
+                            <th>Author</th>
+                            <th>ISBN</th>
+                            <th>Publisher</th>
+                            <th>Available</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-
-            <h4>Digital Media</h4>
-            <table class="table table-striped table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Title</th>
-                        <th>Author</th>
-                        <th>ISBN</th>
-                        <th>Publisher</th>
-                        <th>Year</th>
-                        <th>Media Type</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($digitals as $media): ?>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($books as $book): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($book['title']) ?></td>
+                                <td><?= htmlspecialchars($book['author']) ?></td>
+                                <td><?= htmlspecialchars($book['isbn']) ?></td>
+                                <td><?= htmlspecialchars($book['publisher']) ?></td>
+                                <td><?= $book['available'] ?> / <?= $book['quantity'] ?></td>
+                                <td><?= htmlspecialchars($book['status']) ?></td>
+                                <td>
+                                    <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                    <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php elseif ($filter === 'digital'): ?>
+                <h4>Digital Media</h4>
+                <table class="table table-bordered">
+                    <thead class="table-dark">
                         <tr>
-                            <td><?= htmlspecialchars($media['title']) ?></td>
-                            <td><?= htmlspecialchars($media['author']) ?></td>
-                            <td><?= htmlspecialchars($media['isbn']) ?></td>
-                            <td><?= htmlspecialchars($media['publisher']) ?></td>
-                            <td><?= htmlspecialchars($media['year_published']) ?></td>
-                            <td><?= htmlspecialchars($media['media_type']) ?></td>
-                            <td><?= htmlspecialchars($media['status']) ?></td>
-                            <td>
-                                <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
-                            </td>
+                            <th>Title</th>
+                            <th>Author</th>
+                            <th>Media Type</th>
+                            <th>Publisher</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-
-            <h4>Archival / Research</h4>
-            <table class="table table-striped table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Title</th>
-                        <th>Author</th>
-                        <th>ISBN</th>
-                        <th>Publisher</th>
-                        <th>Year</th>
-                        <th>Description</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($research as $item): ?>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($digitals as $media): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($media['title']) ?></td>
+                                <td><?= htmlspecialchars($media['author']) ?></td>
+                                <td><?= htmlspecialchars($media['media_type']) ?></td>
+                                <td><?= htmlspecialchars($media['publisher']) ?></td>
+                                <td><?= htmlspecialchars($media['status']) ?></td>
+                                <td>
+                                    <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                    <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php elseif ($filter === 'archival'): ?>
+                <h4>Archival</h4>
+                <table class="table table-bordered">
+                    <thead class="table-dark">
                         <tr>
-                            <td><?= htmlspecialchars($item['title']) ?></td>
-                            <td><?= htmlspecialchars($item['author']) ?></td>
-                            <td><?= htmlspecialchars($item['isbn']) ?></td>
-                            <td><?= htmlspecialchars($item['publisher']) ?></td>
-                            <td><?= htmlspecialchars($item['year_published']) ?></td>
-                            <td><?= htmlspecialchars($item['description']) ?></td>
-                            <td><?= htmlspecialchars($item['status']) ?></td>
-                            <td>
-                                <a href="?action=edit&id=<?= $item['id'] ?>&table=material_research" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                <a href="?action=delete&id=<?= $item['id'] ?>&table=material_research" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
-                            </td>
+                            <th>Title</th>
+                            <th>Author</th>
+                            <th>Description</th>
+                            <th>Publisher</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($research as $arch): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($arch['title']) ?></td>
+                                <td><?= htmlspecialchars($arch['author']) ?></td>
+                                <td><?= htmlspecialchars($arch['description']) ?></td>
+                                <td><?= htmlspecialchars($arch['publisher']) ?></td>
+                                <td><?= htmlspecialchars($arch['status']) ?></td>
+                                <td>
+                                    <a href="?action=edit&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                    <a href="?action=delete&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -254,15 +260,15 @@ $research = $stmtResearch->fetchAll(PDO::FETCH_ASSOC);
             <div class="modal-body text-center">
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Book">
-                    <button type="submit" class="btn btn-outline-primary w-100 mb-2" data-bs-dismiss="modal">Add Book</button>
+                    <button type="submit" class="btn btn-outline-primary w-100 mb-2">Add Book</button>
                 </form>
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Digital Media">
-                    <button type="submit" class="btn btn-outline-success w-100 mb-2" data-bs-dismiss="modal">Add Digital Media</button>
+                    <button type="submit" class="btn btn-outline-success w-100 mb-2">Add Digital Media</button>
                 </form>
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Archival">
-                    <button type="submit" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Add Archival</button>
+                    <button type="submit" class="btn btn-outline-warning w-100">Add Archival</button>
                 </form>
             </div>
         </div>
