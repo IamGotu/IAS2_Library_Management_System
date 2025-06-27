@@ -18,6 +18,15 @@
             <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/borrow_history.php"><i class="fa-solid fa-history me-2">‌</i>Borrow History</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-history me-2">‌</i>Renew Loan Material</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link text-white" href="../employee/activity_logs.php"><i class="fa-solid fa-business-time me-2">‌</i>Activity Logs</a>
         </li>
         <li class="nav-item">
