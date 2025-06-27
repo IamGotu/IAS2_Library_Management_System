@@ -1,9 +1,24 @@
 <?php
 session_start();
 include '../../config/db_conn.php';
+
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     header("Location: ../login.php");
     exit;
+}
+
+function logActivity($pdo, $userId, $role, $actionDesc) {
+    // Fetch full name based on user role
+    if ($role === 'employee') {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
+    } else {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM customer WHERE customer_id = ?");
+    }
+    $stmt->execute([$userId]);
+    $fullName = trim(preg_replace('/\s+/', ' ', $stmt->fetchColumn()));
+
+    $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_role, full_name, action) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
 // Fetch users from the database
@@ -40,6 +55,53 @@ $roles = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
 // Separate roles by type
 $employeeRoles = array_filter($roles, fn($r) => $r['description'] === 'Employee');
 $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer');
+
+// Handle user actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    $userId = $_POST['id'] ?? 0;
+    $userType = $_POST['user_type'] ?? '';
+    
+    try {
+        switch ($action) {
+            case 'add_employee':
+                // Add employee logic
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Added new employee: " . $_POST['first_name'] . " " . $_POST['last_name']);
+                $_SESSION['success'] = "Employee added successfully";
+                break;
+                
+            case 'add_customer':
+                // Add customer logic
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Added new customer: " . $_POST['first_name'] . " " . $_POST['last_name']);
+                $_SESSION['success'] = "Customer added successfully";
+                break;
+                
+            case 'edit_user':
+                // Edit user logic
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Edited $userType with ID: $userId");
+                $_SESSION['success'] = "User updated successfully";
+                break;
+                
+            case 'delete_user':
+                // Delete user logic
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Deleted $userType with ID: $userId");
+                $_SESSION['success'] = "User deleted successfully";
+                break;
+                
+            default:
+                throw new Exception("Invalid action");
+        }
+        
+        header("Location: manage_users.php");
+        exit;
+        
+    } catch (Exception $e) {
+        logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Failed to perform action: " . $e->getMessage());
+        $_SESSION['error'] = $e->getMessage();
+        header("Location: manage_users.php");
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -52,7 +114,6 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
 </head>
 <body>
 <div class="d-flex">
-
     <?php include './includes/sidebar.php'; ?>
 
     <div class="flex-grow-1">
@@ -123,7 +184,8 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <div class="modal-body">
-                                            <form action="./includes/edit_user.php" method="POST">
+                                            <form action="manage_users.php" method="POST">
+                                                <input type="hidden" name="action" value="edit_user">
                                                 <input type="hidden" name="id" value="<?= $user['id'] ?>">
                                                 <input type="hidden" name="user_type" value="<?= $user['user_type'] ?>">
                                                 <div class="row g-3">
@@ -204,8 +266,10 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                             Are you sure you want to delete this user?
                                         </div>
                                         <div class="modal-footer">
-                                            <form action="./includes/delete_user.php" method="POST">
+                                            <form action="manage_users.php" method="POST">
+                                                <input type="hidden" name="action" value="delete_user">
                                                 <input type="hidden" name="id" value="<?= $user['id'] ?>">
+                                                <input type="hidden" name="user_type" value="<?= $user['user_type'] ?>">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                                 <button type="submit" class="btn btn-danger">Delete</button>
                                             </form>
@@ -213,7 +277,6 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                                     </div>
                                 </div>
                             </div>
-
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -243,7 +306,8 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
             <!-- Add Employee Modal -->
             <div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
-                    <form action="./includes/add_employee.php" method="POST">
+                    <form action="manage_users.php" method="POST">
+                        <input type="hidden" name="action" value="add_employee">
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">Add Employee</h5>
@@ -289,7 +353,8 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
             <!-- Add Customer Modal -->
             <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-labelledby="addCustomerModalLabel" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
-                    <form action="./includes/add_customer.php" method="POST">
+                    <form action="manage_users.php" method="POST">
+                        <input type="hidden" name="action" value="add_customer">
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">Add Customer</h5>
@@ -331,10 +396,8 @@ $customerRoles = array_filter($roles, fn($r) => $r['description'] === 'Customer'
                     </form>
                 </div>
             </div>
-
         </div>
     </div>
-
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
