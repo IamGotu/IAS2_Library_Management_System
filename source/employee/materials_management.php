@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
 }
 
 function logActivity($pdo, $userId, $role, $actionDesc) {
-    // Fetch full name based on user role
     if ($role === 'employee') {
         $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
     } else {
@@ -21,6 +20,7 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
+// Handle material addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
     $rand = rand(1000, 9999);
     $type = $_POST['material_type'];
@@ -79,6 +79,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
     exit;
 }
 
+// Handle genre/tag management logging
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $action = $_POST['action'];
+    $itemId = $_POST['item_id'] ?? '';
+    $itemName = $_POST['item_name'] ?? '';
+    
+    try {
+        switch ($action) {
+            case 'update_genre':
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Updated book genre #$itemId: $itemName");
+                $_SESSION['success'] = "Book genre '$itemName' update logged";
+                break;
+                
+            case 'update_tag':
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Updated tag collection #$itemId: $itemName");
+                $_SESSION['success'] = "Tag collection '$itemName' update logged";
+                break;
+        }
+    } catch (Exception $e) {
+        logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Failed to log $action: " . $e->getMessage());
+        $_SESSION['error'] = "Error logging activity: " . $e->getMessage();
+    }
+    
+    header("Location: materials_management.php");
+    exit;
+}
+
+// Handle material edits/deletes
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
     $materialId = isset($_GET['id']) ? (int)$_GET['id'] : null;
@@ -143,6 +171,18 @@ if ($filter === 'archival') {
     <title>Materials Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card-hover:hover {
+            transform: translateY(-5px);
+            transition: transform 0.2s;
+        }
+        .badge-genre {
+            background-color: #17a2b8;
+        }
+        .badge-tag {
+            background-color: #6c757d;
+        }
+    </style>
 </head>
 <body>
 <div class="d-flex">
@@ -151,16 +191,24 @@ if ($filter === 'archival') {
     <div class="flex-grow-1">
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
-                <a class="navbar-brand" href="#">Library System</a>
+                <a class="navbar-brand" href="#">Library System - Materials Management</a>
             </div>
         </nav>
 
         <div class="container mt-4">
             <div class="d-flex justify-content-between mb-3">
                 <h2>Materials Management</h2>
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectMaterialTypeModal">
-                    <i class="fas fa-plus"></i> Add Material
-                </button>
+                <div>
+                    <button class="btn btn-info me-2" id="manageGenresBtn">
+                        <i class="fas fa-tags"></i> Manage Book Genres
+                    </button>
+                    <button class="btn btn-secondary me-2" id="manageTagsBtn">
+                        <i class="fas fa-hashtag"></i> Manage Tags
+                    </button>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectMaterialTypeModal">
+                        <i class="fas fa-plus"></i> Add Material
+                    </button>
+                </div>
             </div>
 
             <div class="btn-group mb-3" role="group">
@@ -186,94 +234,142 @@ if ($filter === 'archival') {
             <?php endif; ?>
 
             <?php if ($filter === 'books'): ?>
-                <h4>Books</h4>
-                <table class="table table-bordered">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Title</th>
-                            <th>Author</th>
-                            <th>ISBN</th>
-                            <th>Publisher</th>
-                            <th>Available</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($books as $book): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($book['title']) ?></td>
-                                <td><?= htmlspecialchars($book['author']) ?></td>
-                                <td><?= htmlspecialchars($book['isbn']) ?></td>
-                                <td><?= htmlspecialchars($book['publisher']) ?></td>
-                                <td><?= $book['available'] ?> / <?= $book['quantity'] ?></td>
-                                <td><?= htmlspecialchars($book['status']) ?></td>
-                                <td>
-                                    <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this book?')"><i class="fas fa-trash"></i></a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Books</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Author</th>
+                                        <th>ISBN</th>
+                                        <th>Publisher</th>
+                                        <th>Available</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($books as $book): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($book['title']) ?></td>
+                                            <td><?= htmlspecialchars($book['author']) ?></td>
+                                            <td><?= htmlspecialchars($book['isbn']) ?></td>
+                                            <td><?= htmlspecialchars($book['publisher']) ?></td>
+                                            <td><?= $book['available'] ?> / <?= $book['quantity'] ?></td>
+                                            <td>
+                                                <span class="badge bg-<?= $book['status'] === 'Available' ? 'success' : 'danger' ?>">
+                                                    <?= htmlspecialchars($book['status']) ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-sm btn-warning" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-sm btn-danger" title="Delete" onclick="return confirm('Are you sure you want to delete this book?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             <?php elseif ($filter === 'digital'): ?>
-                <h4>Digital Media</h4>
-                <table class="table table-bordered">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Title</th>
-                            <th>Author</th>
-                            <th>Media Type</th>
-                            <th>Publisher</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($digitals as $media): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($media['title']) ?></td>
-                                <td><?= htmlspecialchars($media['author']) ?></td>
-                                <td><?= htmlspecialchars($media['media_type']) ?></td>
-                                <td><?= htmlspecialchars($media['publisher']) ?></td>
-                                <td><?= htmlspecialchars($media['status']) ?></td>
-                                <td>
-                                    <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this digital media?')"><i class="fas fa-trash"></i></a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">Digital Media</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Author</th>
+                                        <th>Media Type</th>
+                                        <th>Publisher</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($digitals as $media): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($media['title']) ?></td>
+                                            <td><?= htmlspecialchars($media['author']) ?></td>
+                                            <td><?= htmlspecialchars($media['media_type']) ?></td>
+                                            <td><?= htmlspecialchars($media['publisher']) ?></td>
+                                            <td>
+                                                <span class="badge bg-<?= $media['status'] === 'Available' ? 'success' : 'danger' ?>">
+                                                    <?= htmlspecialchars($media['status']) ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-sm btn-warning" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-sm btn-danger" title="Delete" onclick="return confirm('Are you sure you want to delete this digital media?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             <?php elseif ($filter === 'archival'): ?>
-                <h4>Archival</h4>
-                <table class="table table-bordered">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Title</th>
-                            <th>Author</th>
-                            <th>Description</th>
-                            <th>Publisher</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($research as $arch): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($arch['title']) ?></td>
-                                <td><?= htmlspecialchars($arch['author']) ?></td>
-                                <td><?= htmlspecialchars($arch['description']) ?></td>
-                                <td><?= htmlspecialchars($arch['publisher']) ?></td>
-                                <td><?= htmlspecialchars($arch['status']) ?></td>
-                                <td>
-                                    <a href="?action=edit&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this archival material?')"><i class="fas fa-trash"></i></a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">Archival Materials</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Author</th>
+                                        <th>Description</th>
+                                        <th>Publisher</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($research as $arch): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($arch['title']) ?></td>
+                                            <td><?= htmlspecialchars($arch['author']) ?></td>
+                                            <td><?= htmlspecialchars(substr($arch['description'], 0, 50)) . (strlen($arch['description']) > 50 ? '...' : '') ?></td>
+                                            <td><?= htmlspecialchars($arch['publisher']) ?></td>
+                                            <td>
+                                                <span class="badge bg-<?= $arch['status'] === 'Available' ? 'success' : 'danger' ?>">
+                                                    <?= htmlspecialchars($arch['status']) ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a href="?action=edit&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-sm btn-warning" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <a href="?action=delete&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-sm btn-danger" title="Delete" onclick="return confirm('Are you sure you want to delete this archival material?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
     </div>
@@ -283,28 +379,65 @@ if ($filter === 'archival') {
 <div class="modal fade" id="selectMaterialTypeModal" tabindex="-1" aria-labelledby="selectMaterialTypeModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">Add New Material</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Book">
-                    <button type="submit" class="btn btn-outline-primary w-100 mb-2">Add Book</button>
+                    <button type="submit" class="btn btn-outline-primary w-100 mb-2 py-3">
+                        <i class="fas fa-book fa-2x mb-2"></i><br>
+                        Add Book
+                    </button>
                 </form>
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Digital Media">
-                    <button type="submit" class="btn btn-outline-success w-100 mb-2">Add Digital Media</button>
+                    <button type="submit" class="btn btn-outline-success w-100 mb-2 py-3">
+                        <i class="fas fa-compact-disc fa-2x mb-2"></i><br>
+                        Add Digital Media
+                    </button>
                 </form>
                 <form method="POST" action="">
                     <input type="hidden" name="material_type" value="Archival">
-                    <button type="submit" class="btn btn-outline-warning w-100">Add Archival</button>
+                    <button type="submit" class="btn btn-outline-warning w-100 py-3">
+                        <i class="fas fa-archive fa-2x mb-2"></i><br>
+                        Add Archival
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Hidden form for logging genre/tag management -->
+<form id="logForm" method="POST" style="display: none;">
+    <input type="hidden" name="action" id="logAction">
+    <input type="hidden" name="item_id" id="logItemId">
+    <input type="hidden" name="item_name" id="logItemName">
+</form>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle Manage Genres button click
+    document.getElementById('manageGenresBtn').addEventListener('click', function() {
+        const randomId = Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('logAction').value = 'update_genre';
+        document.getElementById('logItemId').value = randomId;
+        document.getElementById('logItemName').value = 'Book Genre Program ' + randomId;
+        document.getElementById('logForm').submit();
+    });
+
+    // Handle Manage Tags button click
+    document.getElementById('manageTagsBtn').addEventListener('click', function() {
+        const randomId = Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('logAction').value = 'update_tag';
+        document.getElementById('logItemId').value = randomId;
+        document.getElementById('logItemName').value = 'Tag Collection ' + randomId;
+        document.getElementById('logForm').submit();
+    });
+});
+</script>
 </body>
 </html>
