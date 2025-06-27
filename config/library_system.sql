@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 27, 2025 at 11:52 AM
+-- Generation Time: Jun 27, 2025 at 02:13 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -111,7 +111,8 @@ CREATE TABLE `material_books` (
 --
 
 INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`) VALUES
-(1, 'Book Title 8037', 'Book Author 8037', 'ISBN8037', 'Book Publisher 8037', '2025', 5, 5, 'Available');
+(3, 'Book Title 1722', 'Book Author 1722', 'ISBN1722', 'Book Publisher 1722', '2025', 5, 5, 'Available'),
+(4, 'Book Title 4387', 'Book Author 4387', 'ISBN4387', 'Book Publisher 4387', '2025', 5, 5, 'Available');
 
 -- --------------------------------------------------------
 
@@ -136,7 +137,8 @@ CREATE TABLE `material_digital_media` (
 --
 
 INSERT INTO `material_digital_media` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `media_type`, `file_path`, `status`) VALUES
-(1, 'Digital Media Title 7776', 'Digital Media Author 7776', 'ISBN7776', 'Digital Media Publisher 7776', '2025', 'eBook', NULL, 'Available');
+(3, 'Digital Media Title 8605', 'Digital Media Author 8605', 'ISBN8605', 'Digital Media Publisher 8605', '2025', 'eBook', NULL, 'Available'),
+(4, 'Digital Media Title 4970', 'Digital Media Author 4970', 'ISBN4970', 'Digital Media Publisher 4970', '2025', 'eBook', NULL, 'Available');
 
 -- --------------------------------------------------------
 
@@ -160,7 +162,33 @@ CREATE TABLE `material_research` (
 --
 
 INSERT INTO `material_research` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `description`, `status`) VALUES
-(1, 'Archival Title 8190', 'Archival Author 8190', 'ISBN8190', 'Archival Publisher 8190', '2025', NULL, 'Available');
+(3, 'Archival Title 4794', 'Archival Author 4794', 'ISBN4794', 'Archival Publisher 4794', '2025', 'Archived material description for Archival Title 4794', 'Available'),
+(4, 'Archival Title 4689', 'Archival Author 4689', 'ISBN4689', 'Archival Publisher 4689', '2025', 'Archived material description for Archival Title 4689', 'Available');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `material_transactions`
+--
+
+CREATE TABLE `material_transactions` (
+  `transaction_id` int(11) NOT NULL,
+  `material_type` enum('book','digital','research') NOT NULL,
+  `material_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `action` enum('Reserve','Borrow','Return') NOT NULL,
+  `status` enum('Reserved','Borrowed','Returned','Cancelled') DEFAULT 'Reserved',
+  `action_date` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `material_transactions`
+--
+
+INSERT INTO `material_transactions` (`transaction_id`, `material_type`, `material_id`, `customer_id`, `action`, `status`, `action_date`) VALUES
+(8, 'book', 3, 12, 'Borrow', 'Returned', '2025-06-27 19:32:01'),
+(10, 'book', 3, 12, 'Borrow', 'Reserved', '2025-06-27 19:48:05'),
+(11, 'book', 3, 12, 'Return', 'Reserved', '2025-06-27 19:58:52');
 
 -- --------------------------------------------------------
 
@@ -234,6 +262,13 @@ ALTER TABLE `material_research`
   ADD UNIQUE KEY `isbn` (`isbn`);
 
 --
+-- Indexes for table `material_transactions`
+--
+ALTER TABLE `material_transactions`
+  ADD PRIMARY KEY (`transaction_id`),
+  ADD KEY `customer_id` (`customer_id`);
+
+--
 -- Indexes for table `roles`
 --
 ALTER TABLE `roles`
@@ -260,19 +295,25 @@ ALTER TABLE `employees`
 -- AUTO_INCREMENT for table `material_books`
 --
 ALTER TABLE `material_books`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `material_digital_media`
 --
 ALTER TABLE `material_digital_media`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `material_research`
 --
 ALTER TABLE `material_research`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `material_transactions`
+--
+ALTER TABLE `material_transactions`
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -295,6 +336,12 @@ ALTER TABLE `customer`
 --
 ALTER TABLE `employees`
   ADD CONSTRAINT `employee_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `material_transactions`
+--
+ALTER TABLE `material_transactions`
+  ADD CONSTRAINT `material_transactions_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customer` (`customer_id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
