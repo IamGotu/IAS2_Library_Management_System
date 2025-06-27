@@ -8,11 +8,11 @@
         <li class="nav-item mb-2">
             <a class="nav-link text-white" href="../employee/dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
         </li>
-        <li class="nav-item mb-2">
-            <a class="nav-link text-white" href="../employee/manage_users.php"><i class="fas fa-users me-2"></i>Manage Users</a>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/book_management.php"><i class="fas fa-book me-2"></i>Book Management</a>
+            <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
