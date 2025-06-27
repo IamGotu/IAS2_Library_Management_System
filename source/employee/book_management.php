@@ -7,62 +7,75 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     exit;
 }
 
-function simulateAddBook($pdo) {
-    $title = "Simulated Book " . rand(100, 999);
-    $author = "Author " . rand(1, 50);
-    $isbn = "ISBN" . rand(100000, 999999);
-    $publisher = "Publisher Inc.";
-    $year = 2024;
-    $quantity = 5;
-
-    $stmt = $pdo->prepare("INSERT INTO books (title, author, isbn, publisher, year_published, quantity, available) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $quantity]);
-    $_SESSION['success'] = "Book '$title' added successfully.";
-    header("Location: book_management.php");
-    exit;
-}
-
-function simulateEditBook($pdo) {
-    $stmt = $pdo->query("SELECT book_id FROM books ORDER BY book_id DESC LIMIT 1");
-    $book = $stmt->fetch();
-    if ($book) {
-        $newTitle = "Edited Title " . rand(1000, 9999);
-        $stmt = $pdo->prepare("UPDATE books SET title = ? WHERE book_id = ?");
-        $stmt->execute([$newTitle, $book['book_id']]);
-        $_SESSION['success'] = "Book ID {$book['book_id']} updated to '$newTitle'.";
-    } else {
-        $_SESSION['error'] = "No books available to edit.";
-    }
-    header("Location: book_management.php");
-    exit;
-}
-
-function simulateDeleteBook($pdo) {
-    $stmt = $pdo->query("SELECT book_id FROM books ORDER BY book_id DESC LIMIT 1");
-    $book = $stmt->fetch();
-    if ($book) {
-        $stmt = $pdo->prepare("DELETE FROM books WHERE book_id = ?");
-        $stmt->execute([$book['book_id']]);
-        $_SESSION['success'] = "Book ID {$book['book_id']} deleted successfully.";
-    } else {
-        $_SESSION['error'] = "No books available to delete.";
-    }
-    header("Location: book_management.php");
-    exit;
-}
-
 if (isset($_GET['action'])) {
-    switch ($_GET['action']) {
+    $action = $_GET['action'];
+    $bookId = isset($_GET['book_id']) ? (int)$_GET['book_id'] : null;
+
+    switch ($action) {
         case 'add':
-            simulateAddBook($pdo);
+            $rand = rand(1000, 9999);
+            $title = "Simulated Book $rand";
+            $author = "SimAuthor $rand";
+            $isbn = "ISBN$rand";
+            $publisher = "Publisher $rand";
+            $year = date("Y");
+            $quantity = 5;
+            $available = 5;
+            $status = 'Available';
+
+            $stmt = $pdo->prepare("INSERT INTO books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
+
+            $_SESSION['success'] = "Simulated Book '$title' added successfully.";
             break;
+
         case 'edit':
-            simulateEditBook($pdo);
+            if ($bookId) {
+                $newTitle = "Edited Title " . rand(1000, 9999);
+                $stmt = $pdo->prepare("UPDATE books SET title = ? WHERE book_id = ?");
+                $stmt->execute([$newTitle, $bookId]);
+                $_SESSION['success'] = "Book ID $bookId updated to '$newTitle'.";
+            }
             break;
+
         case 'delete':
-            simulateDeleteBook($pdo);
+            if ($bookId) {
+                $stmt = $pdo->prepare("DELETE FROM books WHERE book_id = ?");
+                $stmt->execute([$bookId]);
+                $_SESSION['success'] = "Book ID $bookId deleted successfully.";
+            }
+            break;
+
+        case 'borrow':
+            if ($bookId) {
+                $stmt = $pdo->prepare("SELECT * FROM books WHERE book_id = ? AND available > 0 AND status = 'Requested'");
+                $stmt->execute([$bookId]);
+                $book = $stmt->fetch();
+                if ($book) {
+                    $pdo->prepare("UPDATE books SET available = available - 1, status = 'Borrowed' WHERE book_id = ?")->execute([$bookId]);
+                    $_SESSION['success'] = "Book ID $bookId borrowed successfully.";
+                } else {
+                    $_SESSION['error'] = "Book ID $bookId is not available or not requested for borrowing.";
+                }
+            }
+            break;
+
+        case 'return':
+            if ($bookId) {
+                $stmt = $pdo->prepare("SELECT * FROM books WHERE book_id = ? AND status = 'Borrowed'");
+                $stmt->execute([$bookId]);
+                $book = $stmt->fetch();
+                if ($book) {
+                    $pdo->prepare("UPDATE books SET available = available + 1, status = 'Available' WHERE book_id = ?")->execute([$bookId]);
+                    $_SESSION['success'] = "Book ID $bookId returned successfully.";
+                } else {
+                    $_SESSION['error'] = "Book ID $bookId was not borrowed.";
+                }
+            }
             break;
     }
+    header("Location: book_management.php");
+    exit;
 }
 
 $stmt = $pdo->query("SELECT * FROM books");
@@ -92,11 +105,7 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="container mt-4">
             <div class="d-flex justify-content-between mb-3">
                 <h2>Book Management</h2>
-                <div>
-                    <a href="?action=add" class="btn btn-success"><i class="fas fa-plus"></i> Add Book</a>
-                    <a href="?action=edit" class="btn btn-warning"><i class="fas fa-edit"></i> Edit Book</a>
-                    <a href="?action=delete" class="btn btn-danger"><i class="fas fa-trash"></i> Delete Book</a>
-                </div>
+                <a href="?action=add" class="btn btn-success"><i class="fas fa-plus"></i> Add Book</a>
             </div>
 
             <?php if (isset($_SESSION['success'])): ?>
@@ -124,6 +133,8 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <th>Publisher</th>
                         <th>Year</th>
                         <th>Available</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -135,6 +146,13 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <td><?= htmlspecialchars($book['publisher']) ?></td>
                             <td><?= htmlspecialchars($book['year_published']) ?></td>
                             <td><?= htmlspecialchars($book['available']) ?></td>
+                            <td><?= htmlspecialchars($book['status']) ?></td>
+                            <td>
+                                <a href="?action=edit&book_id=<?= $book['book_id'] ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
+                                <a href="?action=delete&book_id=<?= $book['book_id'] ?>" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                <a href="?action=borrow&book_id=<?= $book['book_id'] ?>" class="btn btn-primary btn-sm"><i class="fas fa-book"></i></a>
+                                <a href="?action=return&book_id=<?= $book['book_id'] ?>" class="btn btn-info btn-sm"><i class="fas fa-undo"></i></a>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
