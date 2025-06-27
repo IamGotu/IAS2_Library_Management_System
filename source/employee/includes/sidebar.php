@@ -12,7 +12,10 @@
             <a class="nav-link text-white" href="../employee/manage_users.php"><i class="fas fa-users me-2"></i>Manage Users</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/materials_management.php"><i class="fas fa-materials me-2"></i>Materials Management</a>
+            <a class="nav-link text-white" href="../employee/materials_management.php"><i class="fa-solid fa-book-open-reader me-2"></i>Manage Materials</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
