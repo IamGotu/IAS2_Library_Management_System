@@ -7,6 +7,20 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     exit;
 }
 
+function logActivity($pdo, $userId, $role, $actionDesc) {
+    // Fetch full name based on user role
+    if ($role === 'employee') {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
+    } else {
+        $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM customer WHERE customer_id = ?");
+    }
+    $stmt->execute([$userId]);
+    $fullName = trim(preg_replace('/\s+/', ' ', $stmt->fetchColumn()));
+
+    $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, user_role, full_name, action) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$userId, $role, $fullName, $actionDesc]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
     $rand = rand(1000, 9999);
     $type = $_POST['material_type'];
@@ -26,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
 
                 $stmt = $pdo->prepare("INSERT INTO material_books (title, author, isbn, publisher, year_published, quantity, available, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$title, $author, $isbn, $publisher, $year, $quantity, $available, $status]);
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Added new book: $title");
                 break;
 
             case 'Digital Media':
@@ -37,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
 
                 $stmt = $pdo->prepare("INSERT INTO material_digital_media (title, author, isbn, publisher, year_published, media_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$title, $author, $isbn, $publisher, $year, $media_type, $status]);
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Added new digital media: $title");
                 break;
 
             case 'Archival':
@@ -48,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
 
                 $stmt = $pdo->prepare("INSERT INTO material_research (title, author, isbn, publisher, year_published, description, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$title, $author, $isbn, $publisher, $year, $description, $status]);
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Added new archival material: $title");
                 break;
         }
 
@@ -55,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['material_type'])) {
         $_SESSION['success'] = "$type '$title' added successfully.";
     } catch (Exception $e) {
         $pdo->rollBack();
+        logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Failed to add $type: " . $e->getMessage());
         $_SESSION['error'] = "Error adding $type: " . $e->getMessage();
     }
     header("Location: materials_management.php");
@@ -66,23 +84,35 @@ if (isset($_GET['action'])) {
     $materialId = isset($_GET['id']) ? (int)$_GET['id'] : null;
     $table = $_GET['table'] ?? '';
 
-    switch ($action) {
-        case 'edit':
-            if ($materialId && $table) {
-                $newTitle = "Edited Material " . rand(1000, 9999);
-                $stmt = $pdo->prepare("UPDATE $table SET title = ? WHERE id = ?");
-                $stmt->execute([$newTitle, $materialId]);
-                $_SESSION['success'] = "Material ID $materialId updated to '$newTitle'.";
-            }
-            break;
+    try {
+        switch ($action) {
+            case 'edit':
+                if ($materialId && $table) {
+                    $newTitle = "Edited Material " . rand(1000, 9999);
+                    $stmt = $pdo->prepare("UPDATE $table SET title = ? WHERE id = ?");
+                    $stmt->execute([$newTitle, $materialId]);
+                    logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Edited material ID $materialId in $table to '$newTitle'");
+                    $_SESSION['success'] = "Material ID $materialId updated to '$newTitle'.";
+                }
+                break;
 
-        case 'delete':
-            if ($materialId && $table) {
-                $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
-                $stmt->execute([$materialId]);
-                $_SESSION['success'] = "Material ID $materialId deleted successfully.";
-            }
-            break;
+            case 'delete':
+                if ($materialId && $table) {
+                    // Get material info before deleting for logging
+                    $stmt = $pdo->prepare("SELECT title FROM $table WHERE id = ?");
+                    $stmt->execute([$materialId]);
+                    $materialTitle = $stmt->fetchColumn();
+                    
+                    $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
+                    $stmt->execute([$materialId]);
+                    logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Deleted material from $table: $materialTitle (ID: $materialId)");
+                    $_SESSION['success'] = "Material ID $materialId deleted successfully.";
+                }
+                break;
+        }
+    } catch (Exception $e) {
+        logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Failed to $action material: " . $e->getMessage());
+        $_SESSION['error'] = "Error performing action: " . $e->getMessage();
     }
 
     header("Location: materials_management.php");
@@ -180,7 +210,7 @@ if ($filter === 'archival') {
                                 <td><?= htmlspecialchars($book['status']) ?></td>
                                 <td>
                                     <a href="?action=edit&id=<?= $book['id'] ?>&table=material_books" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                    <a href="?action=delete&id=<?= $book['id'] ?>&table=material_books" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this book?')"><i class="fas fa-trash"></i></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -209,7 +239,7 @@ if ($filter === 'archival') {
                                 <td><?= htmlspecialchars($media['status']) ?></td>
                                 <td>
                                     <a href="?action=edit&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                    <a href="?action=delete&id=<?= $media['id'] ?>&table=material_digital_media" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this digital media?')"><i class="fas fa-trash"></i></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -238,7 +268,7 @@ if ($filter === 'archival') {
                                 <td><?= htmlspecialchars($arch['status']) ?></td>
                                 <td>
                                     <a href="?action=edit&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></a>
-                                    <a href="?action=delete&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                                    <a href="?action=delete&id=<?= $arch['id'] ?>&table=material_research" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this archival material?')"><i class="fas fa-trash"></i></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
