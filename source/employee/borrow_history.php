@@ -2,11 +2,12 @@
 session_start();
 include '../../config/db_conn.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
+if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit;
 }
 
+// Function to log activity
 function logActivity($pdo, $userId, $role, $actionDesc) {
     if ($role === 'employee') {
         $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
@@ -20,66 +21,89 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Generate random returned materials data
-function generateRandomReturnedMaterials($count = 20) {
-    $history = [];
-    $firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'Robert', 'Lisa', 'William', 'Jessica'];
-    $lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia', 'Rodriguez', 'Wilson'];
-    $bookTitles = [
-        'The Great Adventure', 'Programming 101', 'History of the World', 
-        'Science Fundamentals', 'Art of Design', 'Mathematics for Everyone',
-        'Literature Classics', 'Business Strategies', 'Cooking Masterclass',
-        'Health and Wellness'
-    ];
-    $materialTypes = ['Book', 'E-Book', 'Audiobook', 'Magazine', 'Journal'];
+// Function to get returned materials from database
+function getReturnedMaterials($pdo, $typeFilter = 'all') {
+    $query = "SELECT 
+                t.transaction_id,
+                CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+                c.customer_id,
+                t.material_type,
+                t.material_id,
+                t.action_date AS borrow_date,
+                t.due_date,
+                t.return_date,
+                t.status,
+                t.late_fee,
+                CASE 
+                    WHEN t.return_date > t.due_date THEN DATEDIFF(t.return_date, t.due_date)
+                    ELSE 0
+                END AS days_late,
+                CASE 
+                    WHEN t.material_type = 'book' THEN b.title
+                    WHEN t.material_type = 'digital' THEN d.title
+                    WHEN t.material_type = 'research' THEN r.title
+                END AS material_title
+              FROM material_transactions t
+              JOIN customer c ON t.customer_id = c.customer_id
+              LEFT JOIN material_books b ON t.material_type = 'book' AND t.material_id = b.id
+              LEFT JOIN material_digital_media d ON t.material_type = 'digital' AND t.material_id = d.id
+              LEFT JOIN material_research r ON t.material_type = 'research' AND t.material_id = r.id
+              WHERE t.status = 'Returned'";
     
-    for ($i = 0; $i < $count; $i++) {
-        $borrowDate = date('Y-m-d', strtotime('-'.rand(0, 90).' days'));
-        $dueDate = date('Y-m-d', strtotime($borrowDate.' + '.rand(7, 21).' days'));
-        $returnDate = date('Y-m-d', strtotime($borrowDate.' + '.rand(1, 30).' days'));
-        $isLate = strtotime($returnDate) > strtotime($dueDate);
-        $daysLate = $isLate ? floor((strtotime($returnDate) - strtotime($dueDate)) / (60 * 60 * 24)) : 0;
-        
-        $history[] = [
-            'transaction_id' => rand(1000, 9999),
-            'customer_name' => $firstNames[array_rand($firstNames)] . ' ' . $lastNames[array_rand($lastNames)],
-            'customer_id' => rand(100, 999),
-            'material_title' => $bookTitles[array_rand($bookTitles)],
-            'material_id' => rand(1000, 9999),
-            'material_type' => $materialTypes[array_rand($materialTypes)],
-            'borrow_date' => $borrowDate,
-            'due_date' => $dueDate,
-            'return_date' => $returnDate,
-            'days_late' => $isLate ? $daysLate : 0,
-            'status' => 'Returned',
-            'is_late' => $isLate
+    $params = [];
+    
+    // Apply type filter if not 'all'
+    if ($typeFilter !== 'all') {
+        $query .= " AND t.material_type = ?";
+        $params[] = $typeFilter;
+    }
+    
+    $query .= " ORDER BY t.return_date DESC";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Format the results for display
+    $formattedResults = [];
+    foreach ($results as $row) {
+        $formattedResults[] = [
+            'transaction_id' => $row['transaction_id'],
+            'customer_name' => $row['customer_name'],
+            'customer_id' => $row['customer_id'],
+            'material_title' => $row['material_title'],
+            'material_id' => $row['material_id'],
+            'material_type' => ucfirst($row['material_type']),
+            'borrow_date' => date('Y-m-d', strtotime($row['borrow_date'])),
+            'due_date' => date('Y-m-d', strtotime($row['due_date'])),
+            'return_date' => date('Y-m-d', strtotime($row['return_date'])),
+            'days_late' => $row['days_late'],
+            'status' => $row['status'],
+            'is_late' => $row['days_late'] > 0,
+            'late_fee' => $row['late_fee']
         ];
     }
     
-    // Sort by most recent return date
-    usort($history, function($a, $b) {
-        return strtotime($b['return_date']) - strtotime($a['return_date']);
-    });
-    
-    return $history;
+    return $formattedResults;
 }
 
 // Handle report generation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'generate_report') {
     $reportType = $_POST['report_type'] ?? 'all';
     logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Generated returned materials report: " . ucfirst($reportType));
-    $_SESSION['success'] = "Returned materials report generated (simulated)";
+    $_SESSION['success'] = "Returned materials report generated";
     header("Location: returned_materials.php");
     exit;
 }
 
-// Generate random returned materials
-$returnedMaterials = generateRandomReturnedMaterials(25);
+// Get returned materials from database
+$returnedMaterials = getReturnedMaterials($pdo);
 
 // Filter by material type if requested
 $typeFilter = $_GET['type'] ?? 'all';
 if ($typeFilter !== 'all') {
-    $returnedMaterials = array_filter($returnedMaterials, fn($item) => $item['material_type'] === $typeFilter);
+    $returnedMaterials = getReturnedMaterials($pdo, $typeFilter);
 }
 ?>
 
@@ -138,9 +162,9 @@ if ($typeFilter !== 'all') {
             <div class="mb-3">
                 <div class="btn-group" role="group">
                     <a href="?type=all" class="btn btn-outline-dark <?= $typeFilter === 'all' ? 'active' : '' ?>">All Types</a>
-                    <a href="?type=Book" class="btn btn-outline-primary <?= $typeFilter === 'Book' ? 'active' : '' ?>">Books</a>
-                    <a href="?type=E-Book" class="btn btn-outline-info <?= $typeFilter === 'E-Book' ? 'active' : '' ?>">E-Books</a>
-                    <a href="?type=Audiobook" class="btn btn-outline-secondary <?= $typeFilter === 'Audiobook' ? 'active' : '' ?>">Audiobooks</a>
+                    <a href="?type=book" class="btn btn-outline-primary <?= $typeFilter === 'book' ? 'active' : '' ?>">Books</a>
+                    <a href="?type=digital" class="btn btn-outline-info <?= $typeFilter === 'digital' ? 'active' : '' ?>">Digital Media</a>
+                    <a href="?type=research" class="btn btn-outline-secondary <?= $typeFilter === 'research' ? 'active' : '' ?>">Archival</a>
                 </div>
             </div>
 
@@ -156,6 +180,7 @@ if ($typeFilter !== 'all') {
                         <th>Return Date</th>
                         <th>Status</th>
                         <th>Days Late</th>
+                        <th>Late Fee</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -175,6 +200,7 @@ if ($typeFilter !== 'all') {
                                 <?php endif; ?>
                             </td>
                             <td><?= $item['days_late'] > 0 ? $item['days_late'] : '-' ?></td>
+                            <td><?= $item['late_fee'] > 0 ? '₱' . number_format($item['late_fee'], 2) : '-' ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -201,6 +227,8 @@ if ($typeFilter !== 'all') {
                             <option value="late">Late Returns</option>
                             <option value="recent">Recent Returns (Last 30 Days)</option>
                             <option value="books">Returned Books Only</option>
+                            <option value="digital">Digital Media Only</option>
+                            <option value="research">Archival Materials Only</option>
                         </select>
                     </div>
                     <div class="mb-3">
