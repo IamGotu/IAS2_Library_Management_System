@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 06, 2025 at 08:10 AM
+-- Generation Time: Jul 06, 2025 at 10:11 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -151,7 +151,7 @@ CREATE TABLE `material_books` (
 --
 
 INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`, `genre`) VALUES
-(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 10, 'Available', 'Science Fiction'),
+(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 12, 'Available', 'Science Fiction'),
 (11, 'book', 'book', 'book', 'book', '2002', 5, 5, 'Available', 'Science Fiction');
 
 -- --------------------------------------------------------
@@ -229,12 +229,45 @@ CREATE TABLE `material_transactions` (
   `material_id` int(11) NOT NULL,
   `customer_id` int(11) NOT NULL,
   `action` enum('Reserve','Borrow','Return','Request Access','Approve Access','Grant Access') NOT NULL,
-  `status` enum('Reserved','Borrowed','Returned','Cancelled') DEFAULT 'Reserved',
+  `status` enum('Reserved','Borrowed','Returned','Cancelled','Overdue') DEFAULT 'Reserved',
   `action_date` datetime DEFAULT current_timestamp(),
   `due_date` datetime DEFAULT NULL,
   `return_date` datetime DEFAULT NULL,
   `late_fee` decimal(10,2) DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `material_transactions`
+--
+
+INSERT INTO `material_transactions` (`transaction_id`, `material_type`, `material_id`, `customer_id`, `action`, `status`, `action_date`, `due_date`, `return_date`, `late_fee`) VALUES
+(73, 'book', 10, 12, 'Borrow', 'Returned', '2025-07-06 14:23:41', '2025-07-13 00:00:00', '2025-07-06 09:21:59', 0.00),
+(77, 'book', 10, 13, 'Borrow', 'Returned', '2025-06-29 14:28:29', '2025-07-05 00:00:00', '2025-07-06 09:53:38', 50.00),
+(79, 'book', 10, 14, 'Borrow', 'Returned', '2025-06-15 14:51:08', '2025-06-29 08:51:08', '2025-07-06 10:08:17', 350.00);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payment_receipts`
+--
+
+CREATE TABLE `payment_receipts` (
+  `receipt_id` int(11) NOT NULL,
+  `transaction_id` int(11) NOT NULL,
+  `receipt_number` varchar(20) NOT NULL,
+  `payment_amount` decimal(10,2) NOT NULL,
+  `payment_method` varchar(50) NOT NULL,
+  `receipt_content` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `payment_receipts`
+--
+
+INSERT INTO `payment_receipts` (`receipt_id`, `transaction_id`, `receipt_number`, `payment_amount`, `payment_method`, `receipt_content`, `created_at`) VALUES
+(1, 77, 'RCPT-000077', 50.00, 'cash', '\n        <h3>Library Payment Receipt</h3>\n        <p>Receipt #: RCPT-000077</p>\n        <p>Date: 2025-07-06 09:53:38</p>\n        <hr>\n        <p><strong>Customer:</strong> Member Adult</p>\n        <p><strong>Material:</strong> Sample book (book)</p>\n        <p><strong>Transaction ID:</strong> 77</p>\n        <hr>\n        <p><strong>Payment Method:</strong> cash</p>\n        <p><strong>Amount Paid:</strong> ₱100</p>\n        <p><strong>Late Fee:</strong> ₱50.00</p>\n        <hr>\n        <p>Thank you for your payment!</p>\n        <p>Library System</p>\n    ', '2025-07-06 15:53:38'),
+(2, 79, 'RCPT-000079', 350.00, 'cash', '\r\n        <h3>Library Payment Receipt</h3>\r\n        <p>Receipt #: RCPT-000079</p>\r\n        <p>Date: 2025-07-06 10:08:17</p>\r\n        <hr>\r\n        <p><strong>Customer:</strong> Member Senior</p>\r\n        <p><strong>Material:</strong> Sample book (book)</p>\r\n        <p><strong>Transaction ID:</strong> 79</p>\r\n        <hr>\r\n        <p><strong>Payment Method:</strong> cash</p>\r\n        <p><strong>Amount Paid:</strong> ₱354</p>\r\n        <p><strong>Late Fee:</strong> ₱350.00</p>\r\n        <hr>\r\n        <p>Thank you for your payment!</p>\r\n        <p>Library System</p>\r\n    ', '2025-07-06 16:08:17');
 
 -- --------------------------------------------------------
 
@@ -335,6 +368,13 @@ ALTER TABLE `material_transactions`
   ADD KEY `customer_id` (`customer_id`);
 
 --
+-- Indexes for table `payment_receipts`
+--
+ALTER TABLE `payment_receipts`
+  ADD PRIMARY KEY (`receipt_id`),
+  ADD KEY `transaction_id` (`transaction_id`);
+
+--
 -- Indexes for table `roles`
 --
 ALTER TABLE `roles`
@@ -349,7 +389,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=259;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=290;
 
 --
 -- AUTO_INCREMENT for table `book_genres`
@@ -397,7 +437,13 @@ ALTER TABLE `material_tags`
 -- AUTO_INCREMENT for table `material_transactions`
 --
 ALTER TABLE `material_transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=80;
+
+--
+-- AUTO_INCREMENT for table `payment_receipts`
+--
+ALTER TABLE `payment_receipts`
+  MODIFY `receipt_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `roles`
