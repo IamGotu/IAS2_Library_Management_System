@@ -18,6 +18,9 @@
             <a class="nav-link text-white" href="../customer/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link text-white" href="../customer/borrow_history.php"><i class="fa-solid fa-history me-2">‌</i>Borrow Hisotry</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
         </li>
     </ul>
