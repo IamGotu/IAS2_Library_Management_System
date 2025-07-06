@@ -2,7 +2,6 @@
 session_start();
 include '../../config/db_conn.php';
 
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     header("Location: ../login.php");
     exit;
@@ -21,75 +20,223 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Generate random backup history data
-function generateBackupHistory($count = 10) {
-    $backups = [];
-    $backupTypes = ['Full Database', 'Incremental', 'User Data', 'Transaction Logs', 'Media Files'];
-    $statuses = ['Completed', 'Failed', 'In Progress', 'Scheduled'];
-    $storageLocations = ['Local Server', 'Cloud Storage', 'External HDD', 'NAS'];
+function findMysqlTool($toolName) {
+    $possiblePaths = [
+        "/usr/bin/$toolName",
+        "/usr/local/mysql/bin/$toolName",
+        "/usr/mysql/bin/$toolName",
+        "/opt/lampp/bin/$toolName",
+        "/Applications/MAMP/Library/bin/$toolName",
+        $toolName
+    ];
+
+    foreach ($possiblePaths as $path) {
+        if (is_executable($path)) {
+            return $path;
+        }
+    }
+    return false;
+}
+
+function exportDatabase($pdo, $backupType, $compress) {
+    $config = include '../../config/db_conn.php';
+    $db_host = $config['host'];
+    $db_user = $config['username'];
+    $db_pass = $config['password'];
+    $db_name = $config['database'];
     
-    for ($i = 0; $i < $count; $i++) {
-        $backupDate = date('Y-m-d H:i:s', strtotime('-'.rand(0, 30).' days '.rand(0, 23).':'.rand(0, 59).':00'));
-        $size = rand(100, 5000) / 10; // MB
-        $duration = rand(1, 120); // minutes
-        
-        $backups[] = [
-            'backup_id' => 'BK-' . rand(1000, 9999),
-            'backup_type' => $backupTypes[array_rand($backupTypes)],
-            'backup_date' => $backupDate,
-            'status' => $statuses[array_rand($statuses)],
-            'size_mb' => $size,
-            'duration_min' => $duration,
-            'storage_location' => $storageLocations[array_rand($storageLocations)],
-            'initiated_by' => ['System Admin', 'Automated Job', 'IT Staff'][rand(0, 2)],
-            'notes' => $statuses[array_rand($statuses)] === 'Failed' ? 
-                'Error code: ' . rand(100, 999) . '. Connection timeout.' : 
-                'Backup completed successfully.'
-        ];
+    $backupDir = '../../backups/';
+    if (!file_exists($backupDir)) {
+        mkdir($backupDir, 0755, true);
     }
     
-    // Sort by date (newest first)
-    usort($backups, function($a, $b) {
-        return strtotime($b['backup_date']) - strtotime($a['backup_date']);
-    });
+    $backupFile = $backupDir . $db_name . '_' . date("Y-m-d_H-i-s") . '.sql';
+    $finalFile = $backupFile;
     
-    return $backups;
+    $mysqldumpPath = findMysqlTool('mysqldump');
+    if (!$mysqldumpPath) {
+        return phpBackupDatabase($pdo, $backupType, $compress);
+    }
+    
+    $command = escapeshellcmd($mysqldumpPath) . " --host=" . escapeshellarg($db_host) . 
+               " --user=" . escapeshellarg($db_user);
+    
+    if (!empty($db_pass)) {
+        $command .= " --password=" . escapeshellarg($db_pass);
+    }
+    
+    $command .= " " . escapeshellarg($db_name) . " > " . escapeshellarg($backupFile);
+    
+    system($command, $output);
+    
+    if ($output !== 0 || !file_exists($backupFile)) {
+        throw new Exception("Database backup failed with error code: {$output}");
+    }
+    
+    if ($compress && function_exists('gzencode')) {
+        $finalFile = $backupFile . '.gz';
+        $data = file_get_contents($backupFile);
+        $gzdata = gzencode($data, 9);
+        file_put_contents($finalFile, $gzdata);
+        unlink($backupFile);
+    }
+    
+    $fileSize = round(filesize($finalFile) / (1024 * 1024), 2);
+    $stmt = $pdo->prepare("INSERT INTO backup_history (backup_id, backup_type, file_path, file_size, status, initiated_by) VALUES (?, ?, ?, ?, 'Completed', ?)");
+    $backupId = 'BK-' . strtoupper(uniqid());
+    $stmt->execute([$backupId, $backupType, $finalFile, $fileSize, $_SESSION['user_id']]);
+    
+    return $backupId;
 }
-// Handle maintenance actions
+
+function phpBackupDatabase($pdo, $backupType, $compress) {
+    $backupDir = '../../backups/';
+    if (!file_exists($backupDir)) {
+        mkdir($backupDir, 0755, true);
+    }
+    
+    $backupFile = $backupDir . 'library_system_' . date("Y-m-d_H-i-s") . '.sql';
+    $finalFile = $backupFile;
+    
+    // Get server information
+    $stmt = $pdo->query("SELECT VERSION()");
+    $mysqlVersion = $stmt->fetchColumn();
+    $phpVersion = phpversion();
+    $backupTime = date("M d, Y") . ' at ' . date("h:i A");
+    
+    // Create backup header
+    $output = "-- phpMyAdmin SQL Dump\n";
+    $output .= "-- version 5.2.1\n";
+    $output .= "-- https://www.phpmyadmin.net/\n";
+    $output .= "--\n";
+    $output .= "-- Host: 127.0.0.1\n";
+    $output .= "-- Generation Time: " . $backupTime . "\n";
+    $output .= "-- Server version: " . $mysqlVersion . "\n";
+    $output .= "-- PHP Version: " . $phpVersion . "\n\n";
+    
+    $output .= "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n";
+    $output .= "START TRANSACTION;\n";
+    $output .= "SET time_zone = \"+00:00\";\n\n";
+    
+    $output .= "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n";
+    $output .= "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n";
+    $output .= "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n";
+    $output .= "/*!40101 SET NAMES utf8mb4 */;\n\n";
+    
+    // Get all tables
+    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    
+    foreach ($tables as $table) {
+        // Table structure
+        $output .= "--\n-- Table structure for table `{$table}`\n--\n\n";
+        $output .= "DROP TABLE IF EXISTS `{$table}`;\n";
+        $createTable = $pdo->query("SHOW CREATE TABLE `{$table}`")->fetch(PDO::FETCH_ASSOC);
+        $output .= $createTable['Create Table'] . ";\n\n";
+        
+        // Table data
+        $output .= "--\n-- Dumping data for table `{$table}`\n--\n\n";
+        $rows = $pdo->query("SELECT * FROM `{$table}`")->fetchAll(PDO::FETCH_ASSOC);
+        
+        if (count($rows) > 0) {
+            $columns = array_keys($rows[0]);
+            $output .= "INSERT INTO `{$table}` (`" . implode("`, `", $columns) . "`) VALUES\n";
+            
+            $rowData = [];
+            foreach ($rows as $row) {
+                $values = array_map(function($value) use ($pdo) {
+                    if ($value === null) return 'NULL';
+                    return $pdo->quote($value);
+                }, $row);
+                
+                $rowData[] = "(" . implode(", ", $values) . ")";
+            }
+            
+            $output .= implode(",\n", $rowData) . ";\n\n";
+        }
+    }
+    
+    // Backup footer
+    $output .= "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n";
+    $output .= "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n";
+    $output .= "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n\n";
+    $output .= "COMMIT;\n";
+    
+    file_put_contents($backupFile, $output);
+    
+    if ($compress && function_exists('gzencode')) {
+        $finalFile = $backupFile . '.gz';
+        $data = file_get_contents($backupFile);
+        $gzdata = gzencode($data, 9);
+        file_put_contents($finalFile, $gzdata);
+        unlink($backupFile);
+    }
+    
+    $fileSize = round(filesize($finalFile) / (1024 * 1024), 2);
+    $stmt = $pdo->prepare("INSERT INTO backup_history (backup_id, backup_type, file_path, file_size, status, initiated_by) VALUES (?, ?, ?, ?, 'Completed', ?)");
+    $backupId = 'BK-' . strtoupper(uniqid());
+    $stmt->execute([$backupId, $backupType, $finalFile, $fileSize, $_SESSION['user_id']]);
+    
+    return $backupId;
+}
+
+function getBackupHistory($pdo, $filter = 'all') {
+    $query = "SELECT bh.*, 
+              CONCAT(e.first_name, ' ', COALESCE(e.middle_name, ''), ' ', e.last_name) AS initiated_by_name
+              FROM backup_history bh
+              LEFT JOIN employees e ON bh.initiated_by = e.employee_id";
+    
+    if ($filter !== 'all') {
+        $query .= " WHERE bh.status = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$filter]);
+    } else {
+        $stmt = $pdo->prepare($query);
+        $stmt->execute();
+    }
+    
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    $backupId = $_POST['backup_id'] ?? '';
     
     try {
-        switch ($action) {
-            case 'initiate_backup':
-                $backupType = $_POST['backup_type'] ?? '';
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
-                    "Initiated {$backupType} backup");
-                $_SESSION['success'] = "{$backupType} backup initiated successfully";
-                break;
-                
-            case 'restore_backup':
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
-                    "Restored backup: {$backupId}");
-                $_SESSION['success'] = "Backup {$backupId} restoration initiated";
-                break;
-                
-            case 'delete_backup':
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
-                    "Deleted backup: {$backupId}");
-                $_SESSION['success'] = "Backup {$backupId} deleted successfully";
-                break;
-                
-            case 'run_maintenance':
-                $task = $_POST['task'] ?? '';
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
-                    "Ran maintenance task: {$task}");
-                $_SESSION['success'] = "Maintenance task '{$task}' completed successfully";
-                break;
-                
-            default:
-                throw new Exception("Invalid action");
+        if ($action === 'initiate_backup') {
+            $backupType = $_POST['backup_type'] ?? 'Full Database';
+            $compress = isset($_POST['compress']);
+            
+            $backupId = exportDatabase($pdo, $backupType, $compress);
+            
+            logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
+                "Initiated {$backupType} backup (ID: {$backupId})");
+            $_SESSION['success'] = "{$backupType} backup completed successfully. Backup ID: {$backupId}";
+        } elseif ($action === 'delete_backup') {
+            $backupId = $_POST['backup_id'] ?? '';
+            if (empty($backupId)) {
+                throw new Exception("No backup selected");
+            }
+            
+            $stmt = $pdo->prepare("SELECT file_path FROM backup_history WHERE backup_id = ?");
+            $stmt->execute([$backupId]);
+            $backupFile = $stmt->fetchColumn();
+            
+            if ($backupFile && file_exists($backupFile)) {
+                unlink($backupFile);
+            }
+            
+            $stmt = $pdo->prepare("DELETE FROM backup_history WHERE backup_id = ?");
+            $stmt->execute([$backupId]);
+            
+            logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
+                "Deleted backup: {$backupId}");
+            $_SESSION['success'] = "Backup {$backupId} deleted successfully";
+        } elseif ($action === 'run_maintenance') {
+            $task = $_POST['task'] ?? '';
+            logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
+                "Ran maintenance task: {$task}");
+            $_SESSION['success'] = "Maintenance task '{$task}' completed successfully";
+        } else {
+            throw new Exception("Invalid action");
         }
     } catch (Exception $e) {
         logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
@@ -101,11 +248,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$backups = generateBackupHistory();
 $filter = $_GET['filter'] ?? 'all';
-if ($filter !== 'all') {
-    $backups = array_filter($backups, fn($backup) => $backup['status'] === $filter);
-}
+$backups = getBackupHistory($pdo, $filter);
 ?>
 
 <!DOCTYPE html>
@@ -120,9 +264,6 @@ if ($filter !== 'all') {
         .backup-card:hover { transform: translateY(-5px); }
         .completed { border-left: 4px solid #198754; }
         .failed { border-left: 4px solid #dc3545; }
-        .in-progress { border-left: 4px solid #0d6efd; }
-        .scheduled { border-left: 4px solid #ffc107; }
-        .progress-thin { height: 6px; }
         .backup-type-badge { font-size: 0.8em; }
     </style>
 </head>
@@ -172,8 +313,6 @@ if ($filter !== 'all') {
                         <a href="?filter=all" class="btn btn-outline-dark <?= $filter === 'all' ? 'active' : '' ?>">All Backups</a>
                         <a href="?filter=Completed" class="btn btn-outline-success <?= $filter === 'Completed' ? 'active' : '' ?>">Completed</a>
                         <a href="?filter=Failed" class="btn btn-outline-danger <?= $filter === 'Failed' ? 'active' : '' ?>">Failed</a>
-                        <a href="?filter=In Progress" class="btn btn-outline-primary <?= $filter === 'In Progress' ? 'active' : '' ?>">In Progress</a>
-                        <a href="?filter=Scheduled" class="btn btn-outline-warning <?= $filter === 'Scheduled' ? 'active' : '' ?>">Scheduled</a>
                     </div>
                 </div>
             </div>
@@ -181,63 +320,45 @@ if ($filter !== 'all') {
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                 <?php foreach ($backups as $backup): 
                     $statusClass = strtolower(str_replace(' ', '-', $backup['status']));
-                    $isInProgress = $backup['status'] === 'In Progress';
+                    $backupDate = date('Y-m-d H:i:s', strtotime($backup['created_at']));
                 ?>
                     <div class="col">
                         <div class="card h-100 backup-card <?= $statusClass ?>">
                             <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0"><?= $backup['backup_id'] ?></h5>
-                                <span class="badge bg-<?= 
-                                    $statusClass === 'completed' ? 'success' : 
-                                    ($statusClass === 'failed' ? 'danger' : 
-                                    ($statusClass === 'in-progress' ? 'primary' : 'warning'))
-                                ?>"><?= $backup['status'] ?></span>
+                                <h5 class="card-title mb-0"><?= htmlspecialchars($backup['backup_id']) ?></h5>
+                                <span class="badge bg-<?= $statusClass === 'completed' ? 'success' : 'danger' ?>">
+                                    <?= htmlspecialchars($backup['status']) ?>
+                                </span>
                             </div>
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-muted"><i class="fas fa-calendar-day"></i> <?= date('M j, Y', strtotime($backup['backup_date'])) ?></span>
-                                    <span class="text-muted"><i class="fas fa-clock"></i> <?= date('g:i a', strtotime($backup['backup_date'])) ?></span>
+                                    <span class="text-muted"><i class="fas fa-calendar-day"></i> <?= date('M j, Y', strtotime($backupDate)) ?></span>
+                                    <span class="text-muted"><i class="fas fa-clock"></i> <?= date('g:i a', strtotime($backupDate)) ?></span>
                                 </div>
                                 
                                 <div class="mb-3">
-                                    <span class="badge backup-type-badge bg-info text-dark"><?= $backup['backup_type'] ?></span>
-                                    <span class="badge backup-type-badge bg-light text-dark"><i class="fas fa-hdd"></i> <?= $backup['storage_location'] ?></span>
+                                    <span class="badge backup-type-badge bg-info text-dark"><?= htmlspecialchars($backup['backup_type']) ?></span>
+                                    <span class="badge backup-type-badge bg-light text-dark">
+                                        <i class="fas fa-hdd"></i> <?= pathinfo($backup['file_path'], PATHINFO_EXTENSION) === 'gz' ? 'Compressed' : 'Uncompressed' ?>
+                                    </span>
                                 </div>
                                 
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between">
-                                        <span><i class="fas fa-weight-hanging"></i> <?= $backup['size_mb'] ?> MB</span>
-                                        <span><i class="fas fa-stopwatch"></i> <?= $backup['duration_min'] ?> min</span>
+                                        <span><i class="fas fa-weight-hanging"></i> <?= round($backup['file_size'], 2) ?> MB</span>
+                                        <span><i class="fas fa-user"></i> <?= htmlspecialchars($backup['initiated_by_name'] ?? 'System') ?></span>
                                     </div>
-                                    <?php if ($isInProgress): ?>
-                                        <div class="progress progress-thin mt-1">
-                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                                role="progressbar" style="width: <?= rand(20, 95) ?>%" 
-                                                aria-valuenow="<?= rand(20, 95) ?>" aria-valuemin="0" aria-valuemax="100"></div>
-                                        </div>
-                                    <?php endif; ?>
                                 </div>
                                 
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <small class="text-muted">Initiated by: <?= $backup['initiated_by'] ?></small>
-                                </div>
-                                
-                                <div class="alert alert-<?= $backup['status'] === 'Failed' ? 'danger' : 'light' ?> p-2 mb-0">
-                                    <small><i class="fas fa-info-circle"></i> <?= $backup['notes'] ?></small>
+                                <div class="alert alert-light p-2 mb-0">
+                                    <small><i class="fas fa-info-circle"></i> Stored at: <?= htmlspecialchars(basename($backup['file_path'])) ?></small>
                                 </div>
                             </div>
                             <div class="card-footer bg-white">
-                                <div class="d-flex justify-content-between">
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#restoreModal"
-                                        data-backup-id="<?= $backup['backup_id'] ?>"
-                                        data-backup-type="<?= $backup['backup_type'] ?>"
-                                        data-backup-date="<?= date('M j, Y g:i a', strtotime($backup['backup_date'])) ?>">
-                                        <i class="fas fa-undo"></i> Restore
-                                    </button>
-                                    
+                                <div class="d-flex justify-content-end">
                                     <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteBackupModal"
-                                        data-backup-id="<?= $backup['backup_id'] ?>"
-                                        data-backup-date="<?= date('M j, Y', strtotime($backup['backup_date'])) ?>">
+                                        data-backup-id="<?= htmlspecialchars($backup['backup_id']) ?>"
+                                        data-backup-date="<?= date('M j, Y', strtotime($backupDate)) ?>">
                                         <i class="fas fa-trash-alt"></i> Delete
                                     </button>
                                 </div>
@@ -267,29 +388,21 @@ if ($filter !== 'all') {
                             <option value="Full Database">Full Database Backup</option>
                             <option value="Incremental">Incremental Backup</option>
                             <option value="User Data">User Data Only</option>
-                            <option value="Transaction Logs">Transaction Logs</option>
-                            <option value="Media Files">Media Files</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Storage Location</label>
-                        <select class="form-select" name="storage_location" required>
-                            <option value="Local Server">Local Server</option>
-                            <option value="Cloud Storage">Cloud Storage</option>
-                            <option value="External HDD">External HDD</option>
-                            <option value="NAS">Network Attached Storage</option>
-                        </select>
-                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Backup Name (Optional)</label>
                         <input type="text" class="form-control" name="backup_name" placeholder="e.g., Pre-Maintenance Backup">
                     </div>
+                    
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="compress" id="compressBackup" checked>
                         <label class="form-check-label" for="compressBackup">
                             Compress Backup (Recommended)
                         </label>
                     </div>
+                    
                     <div class="alert alert-warning">
                         <strong>Note:</strong> System performance may be affected during backup process.
                     </div>
@@ -297,49 +410,6 @@ if ($filter !== 'all') {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Initiate Backup</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Restore Modal -->
-<div class="modal fade" id="restoreModal" tabindex="-1" aria-labelledby="restoreModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title">Restore From Backup</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST">
-                <input type="hidden" name="action" value="restore_backup">
-                <input type="hidden" name="backup_id" id="restore_backup_id">
-                <div class="modal-body">
-                    <p>You are about to restore from backup: <strong id="restore_backup_info"></strong></p>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Restore Scope</label>
-                        <select class="form-select" name="restore_scope" required>
-                            <option value="full">Full System Restore</option>
-                            <option value="data_only">Data Only (Preserve Configuration)</option>
-                            <option value="users_only">User Accounts Only</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="verify_backup" id="verifyBackup" checked>
-                        <label class="form-check-label" for="verifyBackup">
-                            Verify Backup Integrity Before Restore
-                        </label>
-                    </div>
-                    
-                    <div class="alert alert-danger">
-                        <strong>Warning:</strong> Restoring will overwrite current data. Ensure you have a current backup before proceeding.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning">Confirm Restore</button>
                 </div>
             </form>
         </div>
@@ -394,21 +464,6 @@ if ($filter !== 'all') {
                         </select>
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Schedule</label>
-                        <select class="form-select" name="schedule" required>
-                            <option value="now">Run Now</option>
-                            <option value="offhours">Schedule During Off-Hours</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="notify_users" id="notifyUsers">
-                        <label class="form-check-label" for="notifyUsers">
-                            Notify Users About Possible Downtime
-                        </label>
-                    </div>
-                    
                     <div class="alert alert-info">
                         <strong>Note:</strong> Some tasks may require system restart or cause temporary service interruption.
                     </div>
@@ -424,16 +479,6 @@ if ($filter !== 'all') {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Initialize restore modal with backup data
-document.getElementById('restoreModal').addEventListener('show.bs.modal', function(event) {
-    const button = event.relatedTarget;
-    const modal = this;
-    
-    modal.querySelector('#restore_backup_id').value = button.getAttribute('data-backup-id');
-    modal.querySelector('#restore_backup_info').textContent = 
-        `${button.getAttribute('data-backup-type')} (${button.getAttribute('data-backup-date')})`;
-});
-
 // Initialize delete backup modal with backup data
 document.getElementById('deleteBackupModal').addEventListener('show.bs.modal', function(event) {
     const button = event.relatedTarget;
@@ -441,20 +486,6 @@ document.getElementById('deleteBackupModal').addEventListener('show.bs.modal', f
     
     modal.querySelector('#delete_backup_id').value = button.getAttribute('data-backup-id');
     modal.querySelector('#delete_backup_date').textContent = button.getAttribute('data-backup-date');
-});
-
-// Simulate backup progress for in-progress backups
-document.querySelectorAll('.progress-bar-animated').forEach(bar => {
-    let progress = parseInt(bar.style.width);
-    const interval = setInterval(() => {
-        progress += Math.random() * 5;
-        if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-        }
-        bar.style.width = `${progress}%`;
-        bar.setAttribute('aria-valuenow', progress);
-    }, 1000);
 });
 </script>
 </body>
