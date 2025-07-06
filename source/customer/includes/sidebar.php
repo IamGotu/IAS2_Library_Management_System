@@ -12,6 +12,9 @@
             <a class="nav-link text-white" href="../customer/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link text-white" href="../customer/borrowed_materials.php"><i class="fa-solid fa-calendar me-2"></i>Borrowed Materials</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link text-white" href="../customer/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
         </li>
         <li class="nav-item">
