@@ -6,13 +6,13 @@
     </div>
     <ul class="nav nav-pills flex-column">
         <li class="nav-item mb-2">
-            <a class="nav-link text-white" href="../employee/dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
+            <a class="nav-link text-white" href="../customer/dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
+            <a class="nav-link text-white" href="../customer/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
+            <a class="nav-link text-white" href="../customer/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
