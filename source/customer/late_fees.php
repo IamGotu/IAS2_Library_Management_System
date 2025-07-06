@@ -2,7 +2,7 @@
 session_start();
 include '../../config/db_conn.php';
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'customer') {
     header("Location: ../login.php");
     exit;
 }
