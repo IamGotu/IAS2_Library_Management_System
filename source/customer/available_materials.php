@@ -7,6 +7,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'customer') {
     exit;
 }
 
+// Get current user's role
+$stmt = $pdo->prepare("SELECT role_id FROM customer WHERE customer_id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$currentUserRole = $stmt->fetchColumn();
+
 function logActivity($pdo, $userId, $role, $actionDesc) {
     if ($role === 'employee') {
         $stmt = $pdo->prepare("SELECT CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) AS full_name FROM employees WHERE employee_id = ?");
@@ -48,6 +53,14 @@ revokeExpiredAccess($pdo);
 $filter = $_GET['filter'] ?? 'books';
 $search = $_GET['search'] ?? '';
 
+// If user is not a researcher and tries to access archival directly, redirect to books
+if ($filter === 'archival' && $currentUserRole != 10) {
+    $filter = 'books';
+    $_SESSION['error'] = "Only researchers can access archival materials.";
+    header("Location: ?filter=books");
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $materialType = $_POST['material_type'];
     $materialId = (int)$_POST['material_id'];
@@ -57,11 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $logUserId = $_SESSION['user_id'];
     $logUserRole = $_SESSION['user_role'];
 
-    if ($materialType === 'research' && ($action === 'Request Access' || $action === 'Grant Access')) {
-        $stmt = $pdo->prepare("SELECT role_id FROM customer WHERE customer_id = ?");
-        $stmt->execute([$customerId]);
-        $roleId = $stmt->fetchColumn();
-        if ($roleId != 10) {
+    // Additional check for archival materials
+    if ($materialType === 'research') {
+        if ($currentUserRole != 10) {
             $_SESSION['error'] = "Only researchers are allowed to request archival materials.";
             header("Location: ?filter=archival");
             exit;
@@ -193,7 +204,9 @@ foreach ($userRequests as $req) {
                 <div class="btn-group">
                     <a href="?filter=books" class="btn btn-outline-primary <?= $filter === 'books' ? 'active' : '' ?>">Books</a>
                     <a href="?filter=digital" class="btn btn-outline-success <?= $filter === 'digital' ? 'active' : '' ?>">Digital Media</a>
-                    <a href="?filter=archival" class="btn btn-outline-warning <?= $filter === 'archival' ? 'active' : '' ?>">Archival</a>
+                    <?php if ($currentUserRole == 10): ?>
+                        <a href="?filter=archival" class="btn btn-outline-warning <?= $filter === 'archival' ? 'active' : '' ?>">Archival</a>
+                    <?php endif; ?>
                 </div>
                 
                 <form method="GET" class="d-flex">
