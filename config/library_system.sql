@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 27, 2025 at 06:01 PM
+-- Generation Time: Jul 06, 2025 at 08:10 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -38,46 +38,24 @@ CREATE TABLE `activity_logs` (
   `timestamp` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `activity_logs`
+-- Table structure for table `book_genres`
 --
 
-INSERT INTO `activity_logs` (`log_id`, `user_id`, `user_role`, `full_name`, `action`, `timestamp`) VALUES
-(99, 1, 'employee', 'Employee Admin', 'Added new employee: Mark John Jopia', '2025-06-27 23:51:02'),
-(100, 1, 'employee', 'Employee Admin', 'Added new customer: Mark John Jopia', '2025-06-27 23:51:35'),
-(101, 1, 'employee', 'Employee Admin', 'Edited Employee with ID: 2', '2025-06-27 23:52:01'),
-(102, 1, 'employee', 'Employee Admin', 'Updated book genre #9452: Book Genre Program 9452', '2025-06-27 23:52:11'),
-(103, 1, 'employee', 'Employee Admin', 'Updated tag collection #8742: Tag Collection 8742', '2025-06-27 23:52:17'),
-(104, 1, 'employee', 'Employee Admin', 'Added new book: Book Title 9112', '2025-06-27 23:52:27'),
-(105, 1, 'employee', 'Employee Admin', 'Added new digital media: Digital Media Title 1848', '2025-06-27 23:52:30'),
-(106, 1, 'employee', 'Employee Admin', 'Added new archival material: Archival Title 9051', '2025-06-27 23:52:32'),
-(107, 1, 'employee', 'Employee Admin', 'Edited material ID 3 in material_books to \'Edited Material 4392\'', '2025-06-27 23:52:41'),
-(108, 1, 'employee', 'Employee Admin', 'Edited material ID 4 in material_books to \'Edited Material 5931\'', '2025-06-27 23:52:46'),
-(109, 1, 'employee', 'Employee Admin', 'Deleted material from material_books: Edited Material 4392 (ID: 3)', '2025-06-27 23:52:49'),
-(110, 1, 'employee', 'Employee Admin', 'Edited material ID 3 in material_digital_media to \'Edited Material 8715\'', '2025-06-27 23:52:51'),
-(111, 1, 'employee', 'Employee Admin', 'Deleted material from material_books: Edited Material 5931 (ID: 4)', '2025-06-27 23:52:53'),
-(112, 1, 'employee', 'Employee Admin', 'Edited material ID 3 in material_research to \'Edited Material 4712\'', '2025-06-27 23:52:55'),
-(113, 1, 'employee', 'Employee Admin', 'Edited material ID 5 in material_books to \'Edited Material 2281\'', '2025-06-27 23:52:57'),
-(114, 1, 'employee', 'Employee Admin', 'Deleted material from material_books: Edited Material 2281 (ID: 5)', '2025-06-27 23:53:00'),
-(115, 1, 'employee', 'Employee Admin', 'Reserved material ID 7 for customer ID 12', '2025-06-27 23:53:07'),
-(116, 1, 'employee', 'Employee Admin', 'Borrowed material ID 7 for customer ID 12', '2025-06-27 23:53:11'),
-(117, 1, 'employee', 'Employee Admin', 'Reserved material ID 7 for customer ID 12', '2025-06-27 23:53:14'),
-(118, 1, 'employee', 'Employee Admin', 'Cancelled reservation of material ID 7 by customer ID 12', '2025-06-27 23:53:17'),
-(119, 1, 'employee', 'Employee Admin', 'Returned material ID 7 by customer ID 12', '2025-06-27 23:53:20'),
-(120, 1, 'employee', 'Employee Admin', 'Marked late fee as paid (Simulated Transaction ID: 4594 for William Williams - Amount: $95.00)', '2025-06-27 23:53:34'),
-(121, 1, 'employee', 'Employee Admin', 'Waived late fee (Simulated Transaction ID: 6916 for Lisa Smith - Amount: $65.00)', '2025-06-27 23:53:36'),
-(122, 1, 'employee', 'Employee Admin', 'Generated late fee report: Current outstanding fees', '2025-06-27 23:53:40'),
-(123, 1, 'employee', 'Employee Admin', 'Generated returned materials report: All', '2025-06-27 23:53:53'),
-(124, 1, 'employee', 'Employee Admin', 'Sent bulk email reminders for 9 loans due in 3 days', '2025-06-27 23:54:22'),
-(125, 1, 'employee', 'Employee Admin', 'Renewed loan #4875 for \'The Hobbit\' (Customer: Emily Jones). New due date: 2025-08-07', '2025-06-27 23:54:32'),
-(126, 1, 'employee', 'Employee Admin', 'Updated event #5349: Author Visit Event 4', '2025-06-27 23:54:42'),
-(127, 1, 'employee', 'Employee Admin', 'Deleted event #1738: Workshop Event 6', '2025-06-27 23:54:50'),
-(128, 1, 'employee', 'Employee Admin', 'Cancelled event #4509: Book Club Event 6', '2025-06-27 23:54:53'),
-(129, 1, 'employee', 'Employee Admin', 'Submitted review for \'The Great Gatsby\' (Rating: 5/5)', '2025-06-27 23:55:10'),
-(130, 1, 'employee', 'Employee Admin', 'Deleted backup: BK-2899', '2025-06-27 23:55:26'),
-(131, 1, 'employee', 'Employee Admin', 'Restored backup: BK-6827', '2025-06-27 23:55:28'),
-(132, 1, 'employee', 'Employee Admin', 'Initiated Full Database backup', '2025-06-27 23:55:30'),
-(133, 1, 'employee', 'Employee Admin', 'Ran maintenance task: Database Optimization', '2025-06-27 23:55:32');
+CREATE TABLE `book_genres` (
+  `genre_id` int(11) NOT NULL,
+  `genre_name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `book_genres`
+--
+
+INSERT INTO `book_genres` (`genre_id`, `genre_name`, `description`) VALUES
+(1, 'Science Fiction', NULL);
 
 -- --------------------------------------------------------
 
@@ -164,15 +142,17 @@ CREATE TABLE `material_books` (
   `year_published` year(4) DEFAULT NULL,
   `quantity` int(11) DEFAULT 1,
   `available` int(11) DEFAULT 1,
-  `status` enum('Available','Archived') DEFAULT 'Available'
+  `status` enum('Available','Archived') DEFAULT 'Available',
+  `genre` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `material_books`
 --
 
-INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`) VALUES
-(7, 'Book Title 9112', 'Book Author 9112', 'ISBN9112', 'Book Publisher 9112', '2025', 5, 5, 'Available');
+INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`, `genre`) VALUES
+(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 10, 'Available', 'Science Fiction'),
+(11, 'book', 'book', 'book', 'book', '2002', 5, 5, 'Available', 'Science Fiction');
 
 -- --------------------------------------------------------
 
@@ -189,17 +169,16 @@ CREATE TABLE `material_digital_media` (
   `year_published` year(4) DEFAULT NULL,
   `media_type` enum('eBook','Audiobook') DEFAULT 'eBook',
   `file_path` varchar(255) DEFAULT NULL,
-  `status` enum('Available','Archived') DEFAULT 'Available'
+  `status` enum('Available','Archived') DEFAULT 'Available',
+  `tags` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `material_digital_media`
 --
 
-INSERT INTO `material_digital_media` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `media_type`, `file_path`, `status`) VALUES
-(3, 'Edited Material 8715', 'Digital Media Author 8605', 'ISBN8605', 'Digital Media Publisher 8605', '2025', 'eBook', NULL, 'Available'),
-(4, 'Digital Media Title 4970', 'Digital Media Author 4970', 'ISBN4970', 'Digital Media Publisher 4970', '2025', 'eBook', NULL, 'Available'),
-(5, 'Digital Media Title 1848', 'Digital Media Author 1848', 'ISBN1848', 'Digital Media Publisher 1848', '2025', 'eBook', NULL, 'Available');
+INSERT INTO `material_digital_media` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `media_type`, `file_path`, `status`, `tags`) VALUES
+(7, 'Sample media', 'Sample media', 'Sample media', 'Sample media', '2001', 'eBook', NULL, 'Available', NULL);
 
 -- --------------------------------------------------------
 
@@ -215,17 +194,28 @@ CREATE TABLE `material_research` (
   `publisher` varchar(255) DEFAULT NULL,
   `year_published` year(4) DEFAULT NULL,
   `description` text DEFAULT NULL,
-  `status` enum('Available','Archived') DEFAULT 'Available'
+  `status` enum('Available','Archived') DEFAULT 'Available',
+  `collection` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `material_research`
 --
 
-INSERT INTO `material_research` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `description`, `status`) VALUES
-(3, 'Edited Material 4712', 'Archival Author 4794', 'ISBN4794', 'Archival Publisher 4794', '2025', 'Archived material description for Archival Title 4794', 'Available'),
-(4, 'Archival Title 4689', 'Archival Author 4689', 'ISBN4689', 'Archival Publisher 4689', '2025', 'Archived material description for Archival Title 4689', 'Available'),
-(5, 'Archival Title 9051', 'Archival Author 9051', 'ISBN9051', 'Archival Publisher 9051', '2025', 'Archived material description for Archival Title 9051', 'Available');
+INSERT INTO `material_research` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `description`, `status`, `collection`) VALUES
+(14, 'Sample archive', 'Sample archive', 'Sample archive', 'Sample archive', '2001', 'Sample archive', 'Available', 'Sample archive');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `material_tags`
+--
+
+CREATE TABLE `material_tags` (
+  `tag_id` int(11) NOT NULL,
+  `tag_name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -238,22 +228,13 @@ CREATE TABLE `material_transactions` (
   `material_type` enum('book','digital','research') NOT NULL,
   `material_id` int(11) NOT NULL,
   `customer_id` int(11) NOT NULL,
-  `action` enum('Reserve','Borrow','Return') NOT NULL,
+  `action` enum('Reserve','Borrow','Return','Request Access','Approve Access','Grant Access') NOT NULL,
   `status` enum('Reserved','Borrowed','Returned','Cancelled') DEFAULT 'Reserved',
-  `action_date` datetime DEFAULT current_timestamp()
+  `action_date` datetime DEFAULT current_timestamp(),
+  `due_date` datetime DEFAULT NULL,
+  `return_date` datetime DEFAULT NULL,
+  `late_fee` decimal(10,2) DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `material_transactions`
---
-
-INSERT INTO `material_transactions` (`transaction_id`, `material_type`, `material_id`, `customer_id`, `action`, `status`, `action_date`) VALUES
-(17, 'book', 3, 12, 'Reserve', 'Reserved', '2025-06-27 20:57:20'),
-(18, 'book', 3, 12, 'Borrow', 'Reserved', '2025-06-27 20:57:33'),
-(19, 'book', 3, 12, 'Return', 'Reserved', '2025-06-27 20:57:39'),
-(21, 'book', 7, 12, 'Borrow', 'Reserved', '2025-06-27 23:53:10'),
-(22, 'book', 7, 12, 'Reserve', 'Reserved', '2025-06-27 23:53:14'),
-(23, 'book', 7, 12, 'Return', 'Reserved', '2025-06-27 23:53:20');
 
 -- --------------------------------------------------------
 
@@ -292,6 +273,13 @@ INSERT INTO `roles` (`role_id`, `role_name`, `description`) VALUES
 --
 ALTER TABLE `activity_logs`
   ADD PRIMARY KEY (`log_id`);
+
+--
+-- Indexes for table `book_genres`
+--
+ALTER TABLE `book_genres`
+  ADD PRIMARY KEY (`genre_id`),
+  ADD UNIQUE KEY `genre_name` (`genre_name`);
 
 --
 -- Indexes for table `customer`
@@ -333,6 +321,13 @@ ALTER TABLE `material_research`
   ADD UNIQUE KEY `isbn` (`isbn`);
 
 --
+-- Indexes for table `material_tags`
+--
+ALTER TABLE `material_tags`
+  ADD PRIMARY KEY (`tag_id`),
+  ADD UNIQUE KEY `tag_name` (`tag_name`);
+
+--
 -- Indexes for table `material_transactions`
 --
 ALTER TABLE `material_transactions`
@@ -354,7 +349,13 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=134;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=259;
+
+--
+-- AUTO_INCREMENT for table `book_genres`
+--
+ALTER TABLE `book_genres`
+  MODIFY `genre_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `customer`
@@ -372,25 +373,31 @@ ALTER TABLE `employees`
 -- AUTO_INCREMENT for table `material_books`
 --
 ALTER TABLE `material_books`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `material_digital_media`
 --
 ALTER TABLE `material_digital_media`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `material_research`
 --
 ALTER TABLE `material_research`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+
+--
+-- AUTO_INCREMENT for table `material_tags`
+--
+ALTER TABLE `material_tags`
+  MODIFY `tag_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `material_transactions`
 --
 ALTER TABLE `material_transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `roles`
