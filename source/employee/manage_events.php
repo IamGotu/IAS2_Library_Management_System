@@ -2,7 +2,7 @@
 session_start();
 include '../../config/db_conn.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
+if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit;
 }
@@ -20,40 +20,22 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Generate random events data
-function generateRandomEvents($count = 10) {
-    $events = [];
-    $eventTypes = ['Book Reading', 'Workshop', 'Lecture', 'Book Club', 'Children\'s Hour', 'Author Visit'];
-    $locations = ['Main Hall', 'Conference Room', 'Children\'s Area', 'Outdoor Garden', 'Auditorium'];
-    $statuses = ['Upcoming', 'Ongoing', 'Completed', 'Cancelled'];
+// Function to get events from database
+function getEvents($pdo, $filter = 'all') {
+    $query = "SELECT * FROM events";
+    $params = [];
     
-    for ($i = 0; $i < $count; $i++) {
-        $startDate = date('Y-m-d H:i:s', strtotime('+'.rand(0, 30).' days '.rand(9, 18).':'.rand(0, 59).':00'));
-        $endDate = date('Y-m-d H:i:s', strtotime($startDate.' + '.rand(1, 3).' hours'));
-        $registrationCount = rand(0, 50);
-        $capacity = rand(20, 100);
-        
-        $events[] = [
-            'event_id' => rand(1000, 9999),
-            'title' => $eventTypes[array_rand($eventTypes)] . ' ' . ['Session', 'Event', 'Program', 'Meeting'][rand(0, 3)] . ' ' . rand(1, 10),
-            'description' => 'Join us for this special '.$eventTypes[array_rand($eventTypes)].' featuring guest speakers and activities.',
-            'event_type' => $eventTypes[array_rand($eventTypes)],
-            'start_datetime' => $startDate,
-            'end_datetime' => $endDate,
-            'location' => $locations[array_rand($locations)],
-            'max_capacity' => $capacity,
-            'registered_count' => min($registrationCount, $capacity),
-            'status' => $statuses[array_rand($statuses)],
-            'organizer' => ['Librarian', 'Guest Speaker', 'Community Partner'][rand(0, 2)]
-        ];
+    if ($filter !== 'all') {
+        $query .= " WHERE status = ?";
+        $params[] = $filter;
     }
     
-    // Sort by start date
-    usort($events, function($a, $b) {
-        return strtotime($a['start_datetime']) - strtotime($b['start_datetime']);
-    });
+    $query .= " ORDER BY start_datetime ASC";
     
-    return $events;
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Handle event actions
@@ -65,28 +47,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         switch ($action) {
             case 'add_event':
-                // In a real system, this would insert into database
+                // Insert new event into database
+                $stmt = $pdo->prepare("INSERT INTO events 
+                    (title, description, event_type, start_datetime, end_datetime, location, max_capacity, organizer, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $_POST['title'],
+                    $_POST['description'],
+                    $_POST['event_type'],
+                    $_POST['start_datetime'],
+                    $_POST['end_datetime'],
+                    $_POST['location'],
+                    $_POST['max_capacity'],
+                    $_POST['organizer'],
+                    $_POST['status']
+                ]);
+                
                 logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
                     "Added new event: " . $_POST['title']);
                 $_SESSION['success'] = "Event '".htmlspecialchars($_POST['title'])."' added successfully";
                 break;
                 
             case 'update_event':
-                // In a real system, this would update database
+                // Update event in database
+                $stmt = $pdo->prepare("UPDATE events SET 
+                    title = ?, 
+                    description = ?, 
+                    event_type = ?, 
+                    start_datetime = ?, 
+                    end_datetime = ?, 
+                    location = ?, 
+                    max_capacity = ?, 
+                    organizer = ?, 
+                    status = ? 
+                    WHERE event_id = ?");
+                $stmt->execute([
+                    $_POST['title'],
+                    $_POST['description'],
+                    $_POST['event_type'],
+                    $_POST['start_datetime'],
+                    $_POST['end_datetime'],
+                    $_POST['location'],
+                    $_POST['max_capacity'],
+                    $_POST['organizer'],
+                    $_POST['status'],
+                    $eventId
+                ]);
+                
                 logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
                     "Updated event #$eventId: $eventTitle");
                 $_SESSION['success'] = "Event '$eventTitle' updated successfully";
                 break;
                 
             case 'cancel_event':
-                // In a real system, this would update status
+                // Update event status to Cancelled
+                $stmt = $pdo->prepare("UPDATE events SET status = 'Cancelled' WHERE event_id = ?");
+                $stmt->execute([$eventId]);
+                
                 logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
                     "Cancelled event #$eventId: $eventTitle");
                 $_SESSION['success'] = "Event '$eventTitle' cancelled successfully";
                 break;
                 
             case 'delete_event':
-                // In a real system, this would delete from database
+                // Delete event from database
+                $stmt = $pdo->prepare("DELETE FROM events WHERE event_id = ?");
+                $stmt->execute([$eventId]);
+                
                 logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
                     "Deleted event #$eventId: $eventTitle");
                 $_SESSION['success'] = "Event '$eventTitle' deleted successfully";
@@ -105,11 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$events = generateRandomEvents();
+// Get events from database
 $filter = $_GET['filter'] ?? 'all';
-if ($filter !== 'all') {
-    $events = array_filter($events, fn($event) => $event['status'] === $filter);
-}
+$events = getEvents($pdo, $filter);
 ?>
 
 <!DOCTYPE html>
@@ -206,18 +231,6 @@ if ($filter !== 'all') {
                                 </div>
                                 
                                 <p class="card-text"><?= $event['description'] ?></p>
-                                
-                                <div class="mb-3">
-                                    <div class="d-flex justify-content-between">
-                                        <small>Registration: <?= $event['registered_count'] ?>/<?= $event['max_capacity'] ?></small>
-                                        <small><?= number_format($percentFull, 0) ?>% full</small>
-                                    </div>
-                                    <div class="progress capacity-bar">
-                                        <div class="progress-bar <?= $percentFull >= 90 ? 'bg-danger' : ($percentFull >= 75 ? 'bg-warning' : 'bg-success') ?>" 
-                                             role="progressbar" style="width: <?= $percentFull ?>%" 
-                                             aria-valuenow="<?= $percentFull ?>" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                </div>
                                 
                                 <div class="d-flex justify-content-between align-items-center">
                                     <small class="text-muted">Organizer: <?= $event['organizer'] ?></small>
@@ -430,9 +443,6 @@ if ($filter !== 'all') {
                 <input type="hidden" name="event_title" id="cancel_event_title">
                 <div class="modal-body">
                     <p>Are you sure you want to cancel this event?</p>
-                    <div class="alert alert-warning">
-                        <strong>Note:</strong> Cancelling an event will notify all registered participants.
-                    </div>
                     <div class="mb-3">
                         <label class="form-label">Cancellation Reason (Optional)</label>
                         <textarea class="form-control" name="reason" rows="2"></textarea>
