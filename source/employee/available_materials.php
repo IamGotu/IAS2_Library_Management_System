@@ -20,6 +20,15 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
+function getCustomerName($customers, $customerId) {
+    foreach ($customers as $customer) {
+        if ($customer['customer_id'] == $customerId) {
+            return $customer['first_name'].' '.$customer['last_name'];
+        }
+    }
+    return 'Unknown Customer';
+}
+
 $filter = $_GET['filter'] ?? 'books';
 $search = $_GET['search'] ?? '';
 
@@ -45,9 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'Reserve') {
-        // Check available copies
+        // Check if material is available (but don't decrement quantity yet)
         if ($materialType === 'book') {
-            $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0 FOR UPDATE");
+            $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0");
             $stmtCheck->execute([$materialId]);
             if (!$stmtCheck->fetchColumn()) {
                 $_SESSION['error'] = "No available copies to reserve.";
@@ -65,14 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
         
+        // Create reservation (without modifying available count)
         $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, 'Reserve')");
         $stmt->execute([$materialType, $materialId, $customerId]);
-        
-        // Decrement available count for books
-        if ($materialType === 'book') {
-            $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available - 1 WHERE id = ?");
-            $stmtUpdate->execute([$materialId]);
-        }
         
         logActivity($pdo, $logUserId, $logUserRole, "Reserved material ID $materialId for customer ID $customerId");
     } 
@@ -87,27 +91,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             header("Location: ?filter=$filter");
             exit;
         }
+
+        // For books, check availability and decrement quantity
+        if ($materialType === 'book') {
+            $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0 FOR UPDATE");
+            $stmtCheck->execute([$materialId]);
+            if (!$stmtCheck->fetchColumn()) {
+                $_SESSION['error'] = "No available copies to borrow.";
+                header("Location: ?filter=$filter");
+                exit;
+            }
+            
+            // Now decrement the available count
+            $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available - 1 WHERE id = ?");
+            $stmtUpdate->execute([$materialId]);
+        }
+
+        // Calculate due date (7 days from now)
+        $dueDate = date('Y-m-d H:i:s', strtotime('+7 days'));
         
-        // Create borrow record
-        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, 'Borrow')");
-        $stmt->execute([$materialType, $materialId, $customerId]);
+        // Create borrow record with due date
+        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action, due_date) VALUES (?, ?, ?, 'Borrow', ?)");
+        $stmt->execute([$materialType, $materialId, $customerId, $dueDate]);
         
         // Remove the reservation
         $stmtDelete = $pdo->prepare("DELETE FROM material_transactions WHERE transaction_id = ?");
         $stmtDelete->execute([$reservationId]);
         
-        logActivity($pdo, $logUserId, $logUserRole, "Borrowed material ID $materialId for customer ID $customerId");
+        logActivity($pdo, $logUserId, $logUserRole, "Borrowed material ID $materialId for customer ID $customerId (Due: $dueDate)");
     } 
     elseif ($action === 'Cancel Reservation') {
         // Delete reservation
         $stmtCancel = $pdo->prepare("DELETE FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Reserve' LIMIT 1");
         $stmtCancel->execute([$materialType, $materialId, $customerId]);
-        
-        // Increment available count for books
-        if ($materialType === 'book' && $stmtCancel->rowCount() > 0) {
-            $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available + 1 WHERE id = ?");
-            $stmtUpdate->execute([$materialId]);
-        }
         
         logActivity($pdo, $logUserId, $logUserRole, "Cancelled reservation of material ID $materialId by customer ID $customerId");
     }
@@ -117,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// Query materials
+// Query materials - show all available books (available > 0)
 $queryParams = [];
 $queryWhere = "";
 
@@ -299,20 +315,20 @@ foreach ($reservations as $res) {
                             </div>
                             <div class="modal-body">
                                 <?php if (isset($reservationMap[$reservationKey])): ?>
-                                    <select name="customer_id" class="form-select" required>
-                                        <option value="">Select Customer</option>
-                                        <?php foreach ($reservationMap[$reservationKey] as $reservation): ?>
-                                            <option value="<?= $reservation['customer_id'] ?>">
-                                                <?php 
-                                                $customer = array_filter($customers, function($c) use ($reservation) {
-                                                    return $c['customer_id'] == $reservation['customer_id'];
-                                                });
-                                                $customer = reset($customer);
-                                                echo htmlspecialchars($customer['first_name'].' '.$customer['last_name']);
-                                                ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div class="mb-3">
+                                        <label class="form-label">Select Customer:</label>
+                                        <select name="customer_id" class="form-select" required>
+                                            <option value="">Select Customer</option>
+                                            <?php foreach ($reservationMap[$reservationKey] as $reservation): ?>
+                                                <option value="<?= $reservation['customer_id'] ?>">
+                                                    <?= htmlspecialchars(getCustomerName($customers, $reservation['customer_id'])) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="alert alert-info">
+                                        <strong>Due Date:</strong> <?= date('F j, Y', strtotime('+7 days')) ?>
+                                    </div>
                                 <?php else: ?>
                                     <div class="alert alert-warning">No reservations found for this material.</div>
                                 <?php endif; ?>
@@ -342,13 +358,7 @@ foreach ($reservations as $res) {
                                     <?php if (isset($reservationMap[$reservationKey])): ?>
                                         <?php foreach ($reservationMap[$reservationKey] as $reservation): ?>
                                             <option value="<?= $reservation['customer_id'] ?>">
-                                                <?php 
-                                                $customer = array_filter($customers, function($c) use ($reservation) {
-                                                    return $c['customer_id'] == $reservation['customer_id'];
-                                                });
-                                                $customer = reset($customer);
-                                                echo htmlspecialchars($customer['first_name'].' '.$customer['last_name']);
-                                                ?>
+                                                <?= htmlspecialchars(getCustomerName($customers, $reservation['customer_id'])) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
