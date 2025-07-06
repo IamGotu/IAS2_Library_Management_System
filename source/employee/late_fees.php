@@ -20,99 +20,99 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Generate random late fee data (not from database)
-function generateRandomLateFees($count = 10) {
-    $lateFees = [];
-    $firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'Robert', 'Lisa', 'William', 'Jessica'];
-    $lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia', 'Rodriguez', 'Wilson'];
-    $bookTitles = [
-        'The Great Adventure', 'Programming 101', 'History of the World', 
-        'Science Fundamentals', 'Art of Design', 'Mathematics for Everyone',
-        'Literature Classics', 'Business Strategies', 'Cooking Masterclass',
-        'Health and Wellness'
-    ];
+// Get actual paid transactions from database
+function getPaidLateFees($pdo) {
+    $stmt = $pdo->query("
+        SELECT 
+            t.transaction_id,
+            CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+            c.customer_id,
+            CASE 
+                WHEN t.material_type = 'book' THEN b.title
+                WHEN t.material_type = 'digital' THEN d.title
+                WHEN t.material_type = 'research' THEN r.title
+            END AS material_title,
+            t.material_id,
+            DATE(t.due_date) AS due_date,
+            DATE(t.return_date) AS return_date,
+            DATEDIFF(t.return_date, t.due_date) AS days_late,
+            5.00 AS fee_per_day,
+            t.late_fee AS total_fee,
+            'Paid' AS status
+        FROM material_transactions t
+        JOIN customer c ON t.customer_id = c.customer_id
+        LEFT JOIN material_books b ON t.material_type = 'book' AND t.material_id = b.id
+        LEFT JOIN material_digital_media d ON t.material_type = 'digital' AND t.material_id = d.id
+        LEFT JOIN material_research r ON t.material_type = 'research' AND t.material_id = r.id
+        WHERE t.late_fee > 0 AND t.status = 'Returned'
+        ORDER BY t.return_date DESC
+    ");
     
-    for ($i = 0; $i < $count; $i++) {
-        $daysLate = rand(1, 30);
-        $feePerDay = 5.00;
-        $totalFee = $daysLate * $feePerDay;
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Handle print receipt action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'print_receipt') {
+        $transactionId = $_POST['transaction_id'] ?? 0;
         
-        $lateFees[] = [
-            'transaction_id' => rand(1000, 9999),
-            'customer_name' => $firstNames[array_rand($firstNames)] . ' ' . $lastNames[array_rand($lastNames)],
-            'customer_id' => rand(100, 999),
-            'book_title' => $bookTitles[array_rand($bookTitles)],
-            'book_id' => rand(1000, 9999),
-            'due_date' => date('Y-m-d', strtotime('-'.rand(5, 30).' days')),
-            'return_date' => date('Y-m-d'),
-            'days_late' => $daysLate,
-            'fee_per_day' => $feePerDay,
-            'total_fee' => $totalFee,
-            'status' => ['Unpaid', 'Paid', 'Waived'][rand(0, 2)]
-        ];
-    }
-    
-    return $lateFees;
-}
-
-// Handle fee actions (simulated)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-    $transactionId = $_POST['transaction_id'] ?? 0;
-    $customerName = $_POST['customer_name'] ?? '';
-    $amount = $_POST['amount'] ?? 0;
-    
-    try {
-        switch ($action) {
-            case 'mark_paid':
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Marked late fee as paid (Simulated Transaction ID: $transactionId for $customerName - Amount: $".number_format($amount, 2).")");
-                $_SESSION['success'] = "Successfully marked transaction #$transactionId as paid (simulated)";
-                break;
+        try {
+            // Get receipt data
+            $stmt = $pdo->prepare("
+                SELECT pr.*, 
+                       CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+                       CASE 
+                           WHEN t.material_type = 'book' THEN b.title
+                           WHEN t.material_type = 'digital' THEN d.title
+                           WHEN t.material_type = 'research' THEN r.title
+                       END AS material_title,
+                       t.material_type
+                FROM payment_receipts pr
+                JOIN material_transactions t ON pr.transaction_id = t.transaction_id
+                JOIN customer c ON t.customer_id = c.customer_id
+                LEFT JOIN material_books b ON t.material_type = 'book' AND t.material_id = b.id
+                LEFT JOIN material_digital_media d ON t.material_type = 'digital' AND t.material_id = d.id
+                LEFT JOIN material_research r ON t.material_type = 'research' AND t.material_id = r.id
+                WHERE pr.transaction_id = ?
+            ");
+            $stmt->execute([$transactionId]);
+            $receipt = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($receipt) {
+                // Log the activity
+                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
+                    "Printed receipt for transaction #$transactionId (Amount: ₱".number_format($receipt['payment_amount'], 2).")");
                 
-            case 'waive_fee':
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Waived late fee (Simulated Transaction ID: $transactionId for $customerName - Amount: $".number_format($amount, 2).")");
-                $_SESSION['success'] = "Successfully waived fee for transaction #$transactionId (simulated)";
-                break;
-                
-            case 'generate_report':
-                $reportType = $_POST['report_type'] ?? 'current';
-                logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Generated late fee report: " . ucfirst($reportType) . " outstanding fees");
-                $_SESSION['success'] = "Late fee report generated (simulated)";
-                break;
-                
-            default:
-                throw new Exception("Invalid action");
+                // Output the receipt content directly
+                header('Content-Type: text/html');
+                echo $receipt['receipt_content'];
+                exit;
+            } else {
+                throw new Exception("Receipt not found");
+            }
+        } catch (Exception $e) {
+            logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
+                "Failed to print receipt: " . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+            header("Location: late_fees.php");
+            exit;
         }
-    } catch (Exception $e) {
-        logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], "Failed to process late fee action: " . $e->getMessage());
-        $_SESSION['error'] = $e->getMessage();
     }
-    
-    header("Location: late_fees.php");
-    exit;
 }
 
-// Generate random late fees
-$lateFees = generateRandomLateFees(15);
-
-// Filter by status if requested
-$statusFilter = $_GET['status'] ?? 'all';
-if ($statusFilter !== 'all') {
-    $lateFees = array_filter($lateFees, fn($fee) => $fee['status'] === $statusFilter);
-}
+// Get paid late fees from database
+$lateFees = getPaidLateFees($pdo);
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Late Fee Simulation</title>
+    <title>Paid Late Fees</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .unpaid { background-color: #ffdddd; }
         .paid { background-color: #ddffdd; }
-        .waived { background-color: #ffffdd; }
     </style>
 </head>
 <body>
@@ -122,19 +122,16 @@ if ($statusFilter !== 'all') {
     <div class="flex-grow-1">
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
-                <a class="navbar-brand" href="#">Library System - Late Fee Simulation</a>
+                <a class="navbar-brand" href="#">Library System - Paid Late Fees</a>
             </div>
         </nav>
 
         <div class="container mt-4">
             <div class="d-flex justify-content-between mb-3">
-                <h2>Late Fee Management (Simulation)</h2>
+                <h2>Paid Late Fees</h2>
                 <div>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reportModal">
-                        <i class="fas fa-file-alt"></i> Generate Report
-                    </button>
                     <button class="btn btn-secondary" onclick="window.location.reload()">
-                        <i class="fas fa-sync-alt"></i> Refresh Simulation
+                        <i class="fas fa-sync-alt"></i> Refresh
                     </button>
                 </div>
             </div>
@@ -155,19 +152,12 @@ if ($statusFilter !== 'all') {
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <div class="btn-group mb-3" role="group">
-                <a href="?status=all" class="btn btn-outline-dark <?= $statusFilter === 'all' ? 'active' : '' ?>">All</a>
-                <a href="?status=Unpaid" class="btn btn-outline-danger <?= $statusFilter === 'Unpaid' ? 'active' : '' ?>">Unpaid</a>
-                <a href="?status=Paid" class="btn btn-outline-success <?= $statusFilter === 'Paid' ? 'active' : '' ?>">Paid</a>
-                <a href="?status=Waived" class="btn btn-outline-warning <?= $statusFilter === 'Waived' ? 'active' : '' ?>">Waived</a>
-            </div>
-
             <table class="table table-bordered">
                 <thead class="table-dark">
                     <tr>
                         <th>Transaction ID</th>
                         <th>Customer</th>
-                        <th>Book</th>
+                        <th>Material</th>
                         <th>Due Date</th>
                         <th>Return Date</th>
                         <th>Days Late</th>
@@ -179,83 +169,34 @@ if ($statusFilter !== 'all') {
                 </thead>
                 <tbody>
                     <?php foreach ($lateFees as $fee): ?>
-                        <tr class="<?= strtolower($fee['status']) ?>">
+                        <tr class="paid">
                             <td>#<?= $fee['transaction_id'] ?></td>
                             <td><?= $fee['customer_name'] ?> (ID: <?= $fee['customer_id'] ?>)</td>
-                            <td><?= $fee['book_title'] ?> (ID: <?= $fee['book_id'] ?>)</td>
+                            <td><?= $fee['material_title'] ?> (ID: <?= $fee['material_id'] ?>)</td>
                             <td><?= $fee['due_date'] ?></td>
                             <td><?= $fee['return_date'] ?></td>
                             <td><?= $fee['days_late'] ?></td>
-                            <td>$<?= number_format($fee['fee_per_day'], 2) ?></td>
-                            <td>$<?= number_format($fee['total_fee'], 2) ?></td>
+                            <td>₱<?= number_format($fee['fee_per_day'], 2) ?></td>
+                            <td>₱<?= number_format($fee['total_fee'], 2) ?></td>
                             <td><?= $fee['status'] ?></td>
                             <td>
-                                <?php if ($fee['status'] === 'Unpaid'): ?>
-                                    <form method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="mark_paid">
-                                        <input type="hidden" name="transaction_id" value="<?= $fee['transaction_id'] ?>">
-                                        <input type="hidden" name="customer_name" value="<?= $fee['customer_name'] ?>">
-                                        <input type="hidden" name="amount" value="<?= $fee['total_fee'] ?>">
-                                        <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Mark this fee as paid?')">
-                                            <i class="fas fa-check"></i> Mark Paid
-                                        </button>
-                                    </form>
-                                    <form method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="waive_fee">
-                                        <input type="hidden" name="transaction_id" value="<?= $fee['transaction_id'] ?>">
-                                        <input type="hidden" name="customer_name" value="<?= $fee['customer_name'] ?>">
-                                        <input type="hidden" name="amount" value="<?= $fee['total_fee'] ?>">
-                                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Waive this fee?')">
-                                            <i class="fas fa-hand-holding-usd"></i> Waive
-                                        </button>
-                                    </form>
-                                <?php else: ?>
-                                    <span class="text-muted">No actions</span>
-                                <?php endif; ?>
+                                <form method="POST" target="_blank">
+                                    <input type="hidden" name="action" value="print_receipt">
+                                    <input type="hidden" name="transaction_id" value="<?= $fee['transaction_id'] ?>">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-receipt"></i> Print Receipt
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if (empty($lateFees)): ?>
+                        <tr>
+                            <td colspan="10" class="text-center">No paid late fees found</td>
+                        </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
-        </div>
-    </div>
-</div>
-
-<!-- Report Generation Modal -->
-<div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Generate Late Fee Report</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="generate_report">
-                    <div class="mb-3">
-                        <label class="form-label">Report Type</label>
-                        <select name="report_type" class="form-select" required>
-                            <option value="current">Current Outstanding Fees</option>
-                            <option value="paid">Paid Fees History</option>
-                            <option value="waived">Waived Fees History</option>
-                            <option value="all">Complete Fee History</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Time Period</label>
-                        <select name="time_period" class="form-select">
-                            <option value="30">Last 30 Days</option>
-                            <option value="90">Last 90 Days</option>
-                            <option value="365">Last Year</option>
-                            <option value="all">All Time</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Generate Report</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
