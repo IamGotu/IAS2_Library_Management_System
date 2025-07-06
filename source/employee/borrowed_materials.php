@@ -20,42 +20,100 @@ function logActivity($pdo, $userId, $role, $actionDesc) {
     $stmt->execute([$userId, $role, $fullName, $actionDesc]);
 }
 
-// Generate random active loans data
-function generateRandomActiveLoans($count = 15) {
+// Get actual active loans from database
+function getActiveLoans($pdo) {
     $loans = [];
-    $firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah'];
-    $lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones'];
-    $bookTitles = [
-        'The Great Gatsby', 'To Kill a Mockingbird', '1984', 
-        'Pride and Prejudice', 'The Hobbit', 'Animal Farm',
-        'Brave New World', 'The Catcher in the Rye'
-    ];
     
-    for ($i = 0; $i < $count; $i++) {
-        $borrowDate = date('Y-m-d', strtotime('-'.rand(1, 20).' days'));
-        $dueDate = date('Y-m-d', strtotime($borrowDate.' + 14 days'));
-        $isRenewable = rand(0, 1) && (strtotime($dueDate) > time() || rand(0, 1));
-        $renewalCount = $isRenewable ? rand(0, 2) : 0;
+    // Get book loans
+    $stmt = $pdo->prepare("
+        SELECT t.transaction_id AS loan_id, 
+               CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+               c.customer_id,
+               b.title AS book_title,
+               b.id AS book_id,
+               t.action_date AS borrow_date,
+               t.due_date AS current_due_date,
+               t.due_date AS original_due_date,
+               0 AS renewal_count,  -- Assuming renewals aren't tracked in your current schema
+               c.email,
+               c.phone_num AS phone,
+               t.status
+        FROM material_transactions t
+        JOIN customer c ON t.customer_id = c.customer_id
+        JOIN material_books b ON t.material_id = b.id
+        WHERE t.material_type = 'book' 
+          AND t.action IN ('Borrow', 'Grant Access')
+          AND t.status IN ('Reserved', 'Borrowed')
+    ");
+    $stmt->execute();
+    $bookLoans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get digital media loans
+    $stmt = $pdo->prepare("
+        SELECT t.transaction_id AS loan_id, 
+               CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+               c.customer_id,
+               d.title AS book_title,
+               d.id AS book_id,
+               t.action_date AS borrow_date,
+               t.due_date AS current_due_date,
+               t.due_date AS original_due_date,
+               0 AS renewal_count,  -- Assuming renewals aren't tracked in your current schema
+               c.email,
+               c.phone_num AS phone,
+               t.status
+        FROM material_transactions t
+        JOIN customer c ON t.customer_id = c.customer_id
+        JOIN material_digital_media d ON t.material_id = d.id
+        WHERE t.material_type = 'digital' 
+          AND t.action IN ('Borrow', 'Grant Access')
+          AND t.status IN ('Reserved', 'Borrowed')
+    ");
+    $stmt->execute();
+    $digitalLoans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get research material loans
+    $stmt = $pdo->prepare("
+        SELECT t.transaction_id AS loan_id, 
+               CONCAT(c.first_name, ' ', COALESCE(c.middle_name, ''), ' ', c.last_name) AS customer_name,
+               c.customer_id,
+               r.title AS book_title,
+               r.id AS book_id,
+               t.action_date AS borrow_date,
+               t.due_date AS current_due_date,
+               t.due_date AS original_due_date,
+               0 AS renewal_count,  -- Assuming renewals aren't tracked in your current schema
+               c.email,
+               c.phone_num AS phone,
+               t.status
+        FROM material_transactions t
+        JOIN customer c ON t.customer_id = c.customer_id
+        JOIN material_research r ON t.material_id = r.id
+        WHERE t.material_type = 'research' 
+          AND t.action IN ('Borrow', 'Grant Access')
+          AND t.status IN ('Reserved', 'Borrowed')
+    ");
+    $stmt->execute();
+    $researchLoans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Combine all loans
+    $allLoans = array_merge($bookLoans, $digitalLoans, $researchLoans);
+    
+    // Add additional calculated fields
+    foreach ($allLoans as &$loan) {
+        $loan['is_overdue'] = strtotime($loan['current_due_date']) < time();
+        $loan['is_renewable'] = !$loan['is_overdue']; // Simple logic - can renew if not overdue
         
-        $loans[] = [
-            'loan_id' => rand(1000, 9999),
-            'customer_name' => $firstNames[array_rand($firstNames)] . ' ' . $lastNames[array_rand($lastNames)],
-            'customer_id' => rand(100, 999),
-            'book_title' => $bookTitles[array_rand($bookTitles)],
-            'book_id' => rand(1000, 9999),
-            'borrow_date' => $borrowDate,
-            'original_due_date' => $dueDate,
-            'current_due_date' => date('Y-m-d', strtotime($dueDate.' + '.($renewalCount * 14).' days')),
-            'renewal_count' => $renewalCount,
-            'is_renewable' => $isRenewable,
-            'is_overdue' => strtotime($dueDate) < time(),
-            'email' => strtolower($firstNames[array_rand($firstNames)]) . '.' . strtolower($lastNames[array_rand($lastNames)]) . '@example.com',
-            'phone' => '555-' . rand(100, 999) . '-' . rand(1000, 9999)
-        ];
+        // Format dates for display
+        $loan['borrow_date'] = date('Y-m-d', strtotime($loan['borrow_date']));
+        $loan['current_due_date'] = date('Y-m-d', strtotime($loan['current_due_date']));
+        $loan['original_due_date'] = date('Y-m-d', strtotime($loan['original_due_date']));
     }
     
-    return $loans;
+    return $allLoans;
 }
+
+$activeLoans = getActiveLoans($pdo);
 
 // Handle renewal action
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -69,14 +127,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             switch ($action) {
                 case 'renew_loan':
-                    // Simulate renewal
-                    $newDueDate = date('Y-m-d', strtotime($currentDueDate.' + 14 days'));
+                    // Update due date in database
+                    $newDueDate = date('Y-m-d H:i:s', strtotime($currentDueDate.' +7 days'));
+                    
+                    $stmt = $pdo->prepare("UPDATE material_transactions SET due_date = ? WHERE transaction_id = ?");
+                    $stmt->execute([$newDueDate, $loanId]);
+                    
+                    // Format for display
+                    $displayDate = date('Y-m-d', strtotime($newDueDate));
                     
                     // Log the renewal action
                     logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
-                        "Renewed loan #$loanId for '$bookTitle' (Customer: $customerName). New due date: $newDueDate");
+                        "Renewed loan #$loanId for '$bookTitle' (Customer: $customerName). New due date: $displayDate");
                     
-                    $_SESSION['success'] = "Successfully renewed loan for '$bookTitle' (New due date: $newDueDate)";
+                    $_SESSION['success'] = "Successfully renewed loan for '$bookTitle' (New due date: $displayDate)";
                     break;
                     
                 case 'send_reminder':
@@ -103,8 +167,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $daysBeforeDue = (int)$_POST['days_before'] ?? 3;
                     $reminderType = $_POST['bulk_reminder_type'] ?? 'email';
                     
-                    // Simulate sending bulk reminders
-                    $count = rand(3, 10); // Random count for simulation
+                    // Find loans due in the specified timeframe
+                    $cutoffDate = date('Y-m-d', strtotime("+$daysBeforeDue days"));
+                    $stmt = $pdo->prepare("
+                        SELECT COUNT(*) 
+                        FROM material_transactions 
+                        WHERE due_date <= ? 
+                          AND status IN ('Reserved', 'Borrowed')
+                    ");
+                    $stmt->execute([$cutoffDate]);
+                    $count = $stmt->fetchColumn();
+                    
                     logActivity($pdo, $_SESSION['user_id'], $_SESSION['user_role'], 
                         "Sent bulk $reminderType reminders for $count loans due in $daysBeforeDue days");
                     $_SESSION['success'] = "Sent $count $reminderType reminders for items due in $daysBeforeDue days";
@@ -119,12 +192,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['error'] = "Error: " . $e->getMessage();
         }
         
-        header("Location: renew_loans.php");
+        header("Location: borrowed_materials.php");
         exit;
     }
 }
-
-$activeLoans = generateRandomActiveLoans();
 ?>
 
 <!DOCTYPE html>
@@ -154,7 +225,7 @@ $activeLoans = generateRandomActiveLoans();
 
         <div class="container mt-4">
             <div class="d-flex justify-content-between mb-3">
-                <h2>Active Book Loans</h2>
+                <h2>Active Loan Materials</h2>
                 <div>
                     <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#bulkReminderModal">
                         <i class="fas fa-bell"></i> Bulk Reminders
@@ -184,12 +255,10 @@ $activeLoans = generateRandomActiveLoans();
             <table class="table table-bordered">
                 <thead class="table-dark">
                     <tr>
-                        <th>Loan ID</th>
                         <th>Customer</th>
-                        <th>Book Title</th>
+                        <th>Title</th>
                         <th>Borrow Date</th>
                         <th>Due Date</th>
-                        <th>Renewals</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -200,12 +269,11 @@ $activeLoans = generateRandomActiveLoans();
                         $isDueSoon = $dueInDays <= 3 && $dueInDays >= 0;
                     ?>
                         <tr class="<?= $loan['is_overdue'] ? 'overdue' : ($loan['renewal_count'] > 0 ? 'renewed' : ($isDueSoon ? 'due-soon' : 'renewable')) ?>">
-                            <td>#<?= $loan['loan_id'] ?></td>
                             <td>
-                                <?= $loan['customer_name'] ?> (ID: <?= $loan['customer_id'] ?>)<br>
-                                <small class="text-muted"><?= $loan['email'] ?><br><?= $loan['phone'] ?></small>
+                                <?= htmlspecialchars($loan['customer_name']) ?> (ID: <?= $loan['customer_id'] ?>)<br>
+                                <small class="text-muted"><?= htmlspecialchars($loan['email']) ?><br><?= htmlspecialchars($loan['phone']) ?></small>
                             </td>
-                            <td><?= $loan['book_title'] ?> (ID: <?= $loan['book_id'] ?>)</td>
+                            <td><?= htmlspecialchars($loan['book_title']) ?> (ID: <?= $loan['book_id'] ?>)</td>
                             <td><?= $loan['borrow_date'] ?></td>
                             <td>
                                 <?= $loan['current_due_date'] ?>
@@ -213,14 +281,13 @@ $activeLoans = generateRandomActiveLoans();
                                     <span class="badge bg-warning">Due in <?= ceil($dueInDays) ?> days</span>
                                 <?php endif; ?>
                             </td>
-                            <td><?= $loan['renewal_count'] ?></td>
                             <td>
                                 <?php if ($loan['is_overdue']): ?>
                                     <span class="badge bg-danger">Overdue</span>
-                                <?php elseif ($loan['renewal_count'] > 0): ?>
-                                    <span class="badge bg-warning">Renewed</span>
+                                <?php elseif ($loan['status'] === 'Reserved'): ?>
+                                    <span class="badge bg-info">Reserved</span>
                                 <?php else: ?>
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-success">Borrowed</span>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -229,15 +296,15 @@ $activeLoans = generateRandomActiveLoans();
                                         <form method="POST" class="mb-2">
                                             <input type="hidden" name="action" value="renew_loan">
                                             <input type="hidden" name="loan_id" value="<?= $loan['loan_id'] ?>">
-                                            <input type="hidden" name="customer_name" value="<?= $loan['customer_name'] ?>">
-                                            <input type="hidden" name="book_title" value="<?= $loan['book_title'] ?>">
+                                            <input type="hidden" name="customer_name" value="<?= htmlspecialchars($loan['customer_name']) ?>">
+                                            <input type="hidden" name="book_title" value="<?= htmlspecialchars($loan['book_title']) ?>">
                                             <input type="hidden" name="current_due_date" value="<?= $loan['current_due_date'] ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Renew this loan for another 14 days?')">
+                                            <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Renew this loan for another 7 days?')">
                                                 <i class="fas fa-redo"></i> Renew
                                             </button>
                                         </form>
                                     <?php else: ?>
-                                        <button class="btn btn-secondary btn-sm w-100" disabled title="<?= $loan['renewal_count'] >= 2 ? 'Maximum renewals reached' : 'Not renewable' ?>">
+                                        <button class="btn btn-secondary btn-sm w-100" disabled title="<?= $loan['is_overdue'] ? 'Cannot renew overdue items' : 'Not renewable' ?>">
                                             <i class="fas fa-ban"></i> Can't Renew
                                         </button>
                                     <?php endif; ?>
@@ -247,8 +314,8 @@ $activeLoans = generateRandomActiveLoans();
                                             data-loan-id="<?= $loan['loan_id'] ?>" 
                                             data-book-title="<?= htmlspecialchars($loan['book_title']) ?>" 
                                             data-due-date="<?= $loan['current_due_date'] ?>"
-                                            data-customer-email="<?= $loan['email'] ?>"
-                                            data-customer-phone="<?= $loan['phone'] ?>">
+                                            data-customer-email="<?= htmlspecialchars($loan['email']) ?>"
+                                            data-customer-phone="<?= htmlspecialchars($loan['phone']) ?>">
                                             <i class="fas fa-bell"></i> Remind
                                         </button>
                                     </div>
@@ -262,10 +329,10 @@ $activeLoans = generateRandomActiveLoans();
             <div class="alert alert-info mt-4">
                 <h5><i class="fas fa-info-circle"></i> Loan Management Policies</h5>
                 <ul>
-                    <li>Books can be renewed up to 2 times</li>
-                    <li>Each renewal extends the due date by 14 days</li>
-                    <li>Overdue books may still be renewable at librarian's discretion</li>
-                    <li>Reminders are sent automatically 3 days before due date</li>
+                    <li>Books can be renewed if they're not overdue</li>
+                    <li>Each renewal extends the due date by 7 days</li>
+                    <li>Overdue books cannot be renewed</li>
+                    <li>Reminders can be sent manually or automatically</li>
                 </ul>
             </div>
         </div>
