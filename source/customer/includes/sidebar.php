@@ -24,6 +24,9 @@
             <a class="nav-link text-white" href="../customer/events.php"><i class="fas fa-calendar me-2">‌</i>Events</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link text-white" href="../customer/rate.php"><i class="fa-solid fa-pen me-2">‌</i>Material Rating</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
         </li>
     </ul>
