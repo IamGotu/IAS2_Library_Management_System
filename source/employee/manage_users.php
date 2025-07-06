@@ -2,8 +2,6 @@
 session_start();
 include '../../config/db_conn.php';
 
-$allowed_roles = [1, 2, 6];
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'employee') {
     header("Location: ../login.php");
     exit;
