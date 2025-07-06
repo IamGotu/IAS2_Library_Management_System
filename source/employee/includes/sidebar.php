@@ -30,7 +30,7 @@
             <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-calendar me-2">‌</i>Borrowed Materials</a>
+            <a class="nav-link text-white" href="../employee/borrowed_materials.php"><i class="fa-solid fa-calendar me-2">‌</i>Borrowed Materials</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
