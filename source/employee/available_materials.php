@@ -29,29 +29,29 @@ function getCustomerName($customers, $customerId) {
     return 'Unknown Customer';
 }
 
-// Function to automatically revoke expired access
 function revokeExpiredAccess($pdo) {
     $currentDate = date('Y-m-d H:i:s');
     
-    // Find all granted access that has expired
     $stmt = $pdo->prepare("SELECT * FROM material_transactions 
-                          WHERE action IN ('Grant Access') 
+                          WHERE action = 'Grant Access' 
                           AND due_date IS NOT NULL 
                           AND due_date < ?");
     $stmt->execute([$currentDate]);
     $expiredAccess = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     foreach ($expiredAccess as $access) {
-        // Log the automatic revocation
+        if ($access['material_type'] === 'book') {
+            $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available + 1 WHERE id = ?");
+            $stmtUpdate->execute([$access['material_id']]);
+        }
+        
         logActivity($pdo, 0, 'system', "Automatically revoked access to {$access['material_type']} ID {$access['material_id']} for customer ID {$access['customer_id']} (Expired)");
         
-        // Remove the access record
         $stmtDelete = $pdo->prepare("DELETE FROM material_transactions WHERE transaction_id = ?");
         $stmtDelete->execute([$access['transaction_id']]);
     }
 }
 
-// Check for and revoke expired access
 revokeExpiredAccess($pdo);
 
 $filter = $_GET['filter'] ?? 'books';
@@ -66,8 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $logUserId = $_SESSION['user_id'];
     $logUserRole = $_SESSION['user_role'];
 
-    // Validate Researcher for Archival
-    if ($materialType === 'research' && ($action === 'Request Access' || $action === 'Approve Access')) {
+    if ($materialType === 'research' && ($action === 'Request Access' || $action === 'Grant Access')) {
         $stmt = $pdo->prepare("SELECT role_id FROM customer WHERE customer_id = ?");
         $stmt->execute([$customerId]);
         $roleId = $stmt->fetchColumn();
@@ -79,7 +78,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'Reserve' || $action === 'Request Access') {
-        // For books: check available copies
+        // Check if customer already has a pending request or granted access
+        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM material_transactions 
+                                   WHERE material_type = ? 
+                                   AND material_id = ? 
+                                   AND customer_id = ? 
+                                   AND (action = ? OR action = 'Grant Access')");
+        $actionToCheck = ($materialType === 'book') ? 'Reserve' : 'Request Access';
+        $stmtCheck->execute([$materialType, $materialId, $customerId, $actionToCheck]);
+        
+        if ($stmtCheck->fetchColumn() > 0) {
+            $_SESSION['error'] = "This customer already has a pending or granted access for this material.";
+            header("Location: ?filter=$filter");
+            exit;
+        }
+
         if ($materialType === 'book') {
             $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0");
             $stmtCheck->execute([$materialId]);
@@ -90,15 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
         
-        // Check if already requested by this customer
-        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action IN ('Reserve', 'Request Access')");
-        $stmtCheck->execute([$materialType, $materialId, $customerId]);
-        if ($stmtCheck->fetchColumn() > 0) {
-            $_SESSION['error'] = "This customer already requested access to this material.";
-            header("Location: ?filter=$filter");
-            exit;
-        }
-        
         $actionValue = ($materialType === 'book') ? 'Reserve' : 'Request Access';
         $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, ?)");
         $stmt->execute([$materialType, $materialId, $customerId, $actionValue]);
@@ -106,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         logActivity($pdo, $logUserId, $logUserRole, "Requested access to $materialType ID $materialId for customer ID $customerId");
     } 
     elseif ($action === 'Borrow' || $action === 'Grant Access') {
-        // Check request exists
         $requestAction = ($materialType === 'book') ? 'Reserve' : 'Request Access';
         $stmtCheck = $pdo->prepare("SELECT transaction_id FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = ?");
         $stmtCheck->execute([$materialType, $materialId, $customerId, $requestAction]);
@@ -118,10 +121,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
 
-        // Calculate due date (7 days from now)
         $dueDate = date('Y-m-d H:i:s', strtotime('+7 days'));
         
-        // For books: decrement available count
         if ($materialType === 'book') {
             $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0 FOR UPDATE");
             $stmtCheck->execute([$materialId]);
@@ -136,22 +137,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             $accessAction = 'Borrow';
         } else {
-            // For digital and archival materials
             $accessAction = 'Grant Access';
         }
         
-        // Create access record with due date
         $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action, due_date) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$materialType, $materialId, $customerId, $accessAction, $dueDate]);
         
-        // Remove the request
         $stmtDelete = $pdo->prepare("DELETE FROM material_transactions WHERE transaction_id = ?");
         $stmtDelete->execute([$requestId]);
         
         logActivity($pdo, $logUserId, $logUserRole, "Granted access to $materialType ID $materialId for customer ID $customerId (Due: $dueDate)");
     } 
     elseif ($action === 'Cancel Reservation' || $action === 'Cancel Request') {
-        // Delete request
         $requestAction = ($materialType === 'book') ? 'Reserve' : 'Request Access';
         $stmtCancel = $pdo->prepare("DELETE FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = ? LIMIT 1");
         $stmtCancel->execute([$materialType, $materialId, $customerId, $requestAction]);
@@ -164,7 +161,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// Query materials
 $queryParams = [];
 $queryWhere = "";
 
@@ -190,10 +186,8 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($queryParams);
 $materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch active customers
 $customers = $pdo->query("SELECT customer_id, first_name, last_name, role_id FROM customer WHERE status = 'Active'")->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch current requests and granted access
 $stmtTrans = $pdo->prepare("
     SELECT material_type, material_id, customer_id, action, due_date
     FROM material_transactions
@@ -202,7 +196,6 @@ $stmtTrans = $pdo->prepare("
 $stmtTrans->execute();
 $requests = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
 
-// Group requests by material for quick lookup
 $requestMap = [];
 foreach ($requests as $req) {
     $key = $req['material_type'].'_'.$req['material_id'];
@@ -220,6 +213,12 @@ foreach ($requests as $req) {
     <title>Available Materials</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .access-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
 <div class="d-flex">
@@ -274,16 +273,20 @@ foreach ($requests as $req) {
                         $requestKey = $materialType.'_'.$materialId;
                         $hasRequests = isset($requestMap[$requestKey]);
                         
-                        // Check if this material has pending requests (not granted access)
                         $hasPendingRequests = false;
                         $hasGrantedAccess = false;
+                        $grantedAccessList = [];
+                        $pendingRequests = [];
+                        
                         if ($hasRequests) {
                             foreach ($requestMap[$requestKey] as $req) {
                                 if ($req['action'] === 'Request Access' || $req['action'] === 'Reserve') {
                                     $hasPendingRequests = true;
+                                    $pendingRequests[] = $req;
                                 }
                                 if ($req['action'] === 'Grant Access') {
                                     $hasGrantedAccess = true;
+                                    $grantedAccessList[] = $req;
                                 }
                             }
                         }
@@ -300,26 +303,41 @@ foreach ($requests as $req) {
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                             <?php endif; ?>
                             <td>
-                                <?php if ($filter === 'books' && $item['available'] > 0 || $filter !== 'books'): ?>
-                                    <?php if (!$hasGrantedAccess): ?>
+                                <div class="d-flex flex-column gap-2">
+                                    <?php if ($filter === 'books' && $item['available'] > 0 || $filter !== 'books'): ?>
                                         <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#requestModal_<?= $materialId ?>">
                                             <?= ($filter === 'books') ? 'Reserve' : 'Request Access' ?>
                                         </button>
                                     <?php endif; ?>
-                                <?php endif; ?>
-                                
-                                <?php if ($hasPendingRequests): ?>
-                                    <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal_<?= $materialId ?>">
-                                        <?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?>
-                                    </button>
-                                    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal_<?= $materialId ?>">
-                                        <?= ($filter === 'books') ? 'Cancel' : 'Cancel Request' ?>
-                                    </button>
-                                <?php endif; ?>
-                                
-                                <?php if ($hasGrantedAccess && $filter !== 'books'): ?>
-                                    <span class="badge bg-success">Access Granted</span>
-                                <?php endif; ?>
+                                    
+                                    <?php if ($hasPendingRequests): ?>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal_<?= $materialId ?>">
+                                                <?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal_<?= $materialId ?>">
+                                                <?= ($filter === 'books') ? 'Cancel' : 'Cancel Request' ?>
+                                            </button>
+                                        </div>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($hasGrantedAccess): ?>
+                                        <div class="access-list mt-2">
+                                            <small class="fw-bold">Currently granted to:</small>
+                                            <ul class="list-unstyled">
+                                                <?php foreach ($grantedAccessList as $access): 
+                                                    $customerName = getCustomerName($customers, $access['customer_id']);
+                                                    $dueDate = date('M j, Y', strtotime($access['due_date']));
+                                                    ?>
+                                                    <li class="d-flex justify-content-between align-items-center">
+                                                        <span><?= htmlspecialchars($customerName) ?></span>
+                                                        <span class="badge bg-info">Expires <?= $dueDate ?></span>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -349,8 +367,21 @@ foreach ($requests as $req) {
                                     <option value="">Select Customer</option>
                                     <?php foreach ($customers as $cust):
                                         if ($filter === 'archival' && $cust['role_id'] != 10) continue;
+                                        
+                                        // Check if customer already has access
+                                        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM material_transactions 
+                                                                   WHERE material_type = ? 
+                                                                   AND material_id = ? 
+                                                                   AND customer_id = ? 
+                                                                   AND (action = ? OR action = 'Grant Access')");
+                                        $actionToCheck = ($materialType === 'book') ? 'Reserve' : 'Request Access';
+                                        $stmtCheck->execute([$materialType, $materialId, $cust['customer_id'], $actionToCheck]);
+                                        $hasAccess = $stmtCheck->fetchColumn() > 0;
                                         ?>
-                                        <option value="<?= $cust['customer_id'] ?>"><?= htmlspecialchars($cust['first_name'].' '.$cust['last_name']) ?></option>
+                                        <option value="<?= $cust['customer_id'] ?>" <?= $hasAccess ? 'disabled' : '' ?>>
+                                            <?= htmlspecialchars($cust['first_name'].' '.$cust['last_name']) ?>
+                                            <?= $hasAccess ? '(Already has access)' : '' ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
