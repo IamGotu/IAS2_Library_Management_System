@@ -29,6 +29,31 @@ function getCustomerName($customers, $customerId) {
     return 'Unknown Customer';
 }
 
+// Function to automatically revoke expired access
+function revokeExpiredAccess($pdo) {
+    $currentDate = date('Y-m-d H:i:s');
+    
+    // Find all granted access that has expired
+    $stmt = $pdo->prepare("SELECT * FROM material_transactions 
+                          WHERE action IN ('Grant Access') 
+                          AND due_date IS NOT NULL 
+                          AND due_date < ?");
+    $stmt->execute([$currentDate]);
+    $expiredAccess = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($expiredAccess as $access) {
+        // Log the automatic revocation
+        logActivity($pdo, 0, 'system', "Automatically revoked access to {$access['material_type']} ID {$access['material_id']} for customer ID {$access['customer_id']} (Expired)");
+        
+        // Remove the access record
+        $stmtDelete = $pdo->prepare("DELETE FROM material_transactions WHERE transaction_id = ?");
+        $stmtDelete->execute([$access['transaction_id']]);
+    }
+}
+
+// Check for and revoke expired access
+revokeExpiredAccess($pdo);
+
 $filter = $_GET['filter'] ?? 'books';
 $search = $_GET['search'] ?? '';
 
@@ -42,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $logUserRole = $_SESSION['user_role'];
 
     // Validate Researcher for Archival
-    if ($materialType === 'research' && ($action === 'Reserve' || $action === 'Borrow')) {
+    if ($materialType === 'research' && ($action === 'Request Access' || $action === 'Approve Access')) {
         $stmt = $pdo->prepare("SELECT role_id FROM customer WHERE customer_id = ?");
         $stmt->execute([$customerId]);
         $roleId = $stmt->fetchColumn();
@@ -53,8 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
-    if ($action === 'Reserve') {
-        // Check if material is available (but don't decrement quantity yet)
+    if ($action === 'Reserve' || $action === 'Request Access') {
+        // For books: check available copies
         if ($materialType === 'book') {
             $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0");
             $stmtCheck->execute([$materialId]);
@@ -65,34 +90,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
         
-        // Check if already reserved by this customer
-        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Reserve'");
+        // Check if already requested by this customer
+        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action IN ('Reserve', 'Request Access')");
         $stmtCheck->execute([$materialType, $materialId, $customerId]);
         if ($stmtCheck->fetchColumn() > 0) {
-            $_SESSION['error'] = "This customer already reserved this material.";
+            $_SESSION['error'] = "This customer already requested access to this material.";
             header("Location: ?filter=$filter");
             exit;
         }
         
-        // Create reservation (without modifying available count)
-        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, 'Reserve')");
-        $stmt->execute([$materialType, $materialId, $customerId]);
+        $actionValue = ($materialType === 'book') ? 'Reserve' : 'Request Access';
+        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$materialType, $materialId, $customerId, $actionValue]);
         
-        logActivity($pdo, $logUserId, $logUserRole, "Reserved material ID $materialId for customer ID $customerId");
+        logActivity($pdo, $logUserId, $logUserRole, "Requested access to $materialType ID $materialId for customer ID $customerId");
     } 
-    elseif ($action === 'Borrow') {
-        // Check reservation exists
-        $stmtCheck = $pdo->prepare("SELECT transaction_id FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Reserve'");
-        $stmtCheck->execute([$materialType, $materialId, $customerId]);
-        $reservationId = $stmtCheck->fetchColumn();
+    elseif ($action === 'Borrow' || $action === 'Grant Access') {
+        // Check request exists
+        $requestAction = ($materialType === 'book') ? 'Reserve' : 'Request Access';
+        $stmtCheck = $pdo->prepare("SELECT transaction_id FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = ?");
+        $stmtCheck->execute([$materialType, $materialId, $customerId, $requestAction]);
+        $requestId = $stmtCheck->fetchColumn();
         
-        if (!$reservationId) {
-            $_SESSION['error'] = "No reservation found to borrow.";
+        if (!$requestId) {
+            $_SESSION['error'] = "No request found to approve.";
             header("Location: ?filter=$filter");
             exit;
         }
 
-        // For books, check availability and decrement quantity
+        // Calculate due date (7 days from now)
+        $dueDate = date('Y-m-d H:i:s', strtotime('+7 days'));
+        
+        // For books: decrement available count
         if ($materialType === 'book') {
             $stmtCheck = $pdo->prepare("SELECT available FROM material_books WHERE id = ? AND available > 0 FOR UPDATE");
             $stmtCheck->execute([$materialId]);
@@ -102,30 +131,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit;
             }
             
-            // Now decrement the available count
             $stmtUpdate = $pdo->prepare("UPDATE material_books SET available = available - 1 WHERE id = ?");
             $stmtUpdate->execute([$materialId]);
+            
+            $accessAction = 'Borrow';
+        } else {
+            // For digital and archival materials
+            $accessAction = 'Grant Access';
         }
-
-        // Calculate due date (7 days from now)
-        $dueDate = date('Y-m-d H:i:s', strtotime('+7 days'));
         
-        // Create borrow record with due date
-        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action, due_date) VALUES (?, ?, ?, 'Borrow', ?)");
-        $stmt->execute([$materialType, $materialId, $customerId, $dueDate]);
+        // Create access record with due date
+        $stmt = $pdo->prepare("INSERT INTO material_transactions (material_type, material_id, customer_id, action, due_date) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$materialType, $materialId, $customerId, $accessAction, $dueDate]);
         
-        // Remove the reservation
+        // Remove the request
         $stmtDelete = $pdo->prepare("DELETE FROM material_transactions WHERE transaction_id = ?");
-        $stmtDelete->execute([$reservationId]);
+        $stmtDelete->execute([$requestId]);
         
-        logActivity($pdo, $logUserId, $logUserRole, "Borrowed material ID $materialId for customer ID $customerId (Due: $dueDate)");
+        logActivity($pdo, $logUserId, $logUserRole, "Granted access to $materialType ID $materialId for customer ID $customerId (Due: $dueDate)");
     } 
-    elseif ($action === 'Cancel Reservation') {
-        // Delete reservation
-        $stmtCancel = $pdo->prepare("DELETE FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = 'Reserve' LIMIT 1");
-        $stmtCancel->execute([$materialType, $materialId, $customerId]);
+    elseif ($action === 'Cancel Reservation' || $action === 'Cancel Request') {
+        // Delete request
+        $requestAction = ($materialType === 'book') ? 'Reserve' : 'Request Access';
+        $stmtCancel = $pdo->prepare("DELETE FROM material_transactions WHERE material_type = ? AND material_id = ? AND customer_id = ? AND action = ? LIMIT 1");
+        $stmtCancel->execute([$materialType, $materialId, $customerId, $requestAction]);
         
-        logActivity($pdo, $logUserId, $logUserRole, "Cancelled reservation of material ID $materialId by customer ID $customerId");
+        logActivity($pdo, $logUserId, $logUserRole, "Cancelled request for $materialType ID $materialId by customer ID $customerId");
     }
 
     $_SESSION['success'] = "$action successful.";
@@ -133,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// Query materials - show all available books (available > 0)
+// Query materials
 $queryParams = [];
 $queryWhere = "";
 
@@ -162,23 +193,23 @@ $materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Fetch active customers
 $customers = $pdo->query("SELECT customer_id, first_name, last_name, role_id FROM customer WHERE status = 'Active'")->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch current reservations
+// Fetch current requests and granted access
 $stmtTrans = $pdo->prepare("
-    SELECT material_type, material_id, customer_id, action
+    SELECT material_type, material_id, customer_id, action, due_date
     FROM material_transactions
-    WHERE action = 'Reserve'
+    WHERE action IN ('Reserve', 'Request Access', 'Grant Access')
 ");
 $stmtTrans->execute();
-$reservations = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
+$requests = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
 
-// Group reservations by material for quick lookup
-$reservationMap = [];
-foreach ($reservations as $res) {
-    $key = $res['material_type'].'_'.$res['material_id'];
-    if (!isset($reservationMap[$key])) {
-        $reservationMap[$key] = [];
+// Group requests by material for quick lookup
+$requestMap = [];
+foreach ($requests as $req) {
+    $key = $req['material_type'].'_'.$req['material_id'];
+    if (!isset($requestMap[$key])) {
+        $requestMap[$key] = [];
     }
-    $reservationMap[$key][] = $res;
+    $requestMap[$key][] = $req;
 }
 ?>
 
@@ -240,8 +271,22 @@ foreach ($reservations as $res) {
                     <?php foreach ($materials as $item):
                         $materialId = $item['id'];
                         $materialType = $filter === 'books' ? 'book' : ($filter === 'digital' ? 'digital' : 'research');
-                        $reservationKey = $materialType.'_'.$materialId;
-                        $hasReservations = isset($reservationMap[$reservationKey]);
+                        $requestKey = $materialType.'_'.$materialId;
+                        $hasRequests = isset($requestMap[$requestKey]);
+                        
+                        // Check if this material has pending requests (not granted access)
+                        $hasPendingRequests = false;
+                        $hasGrantedAccess = false;
+                        if ($hasRequests) {
+                            foreach ($requestMap[$requestKey] as $req) {
+                                if ($req['action'] === 'Request Access' || $req['action'] === 'Reserve') {
+                                    $hasPendingRequests = true;
+                                }
+                                if ($req['action'] === 'Grant Access') {
+                                    $hasGrantedAccess = true;
+                                }
+                            }
+                        }
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($item['title']) ?></td>
@@ -255,13 +300,25 @@ foreach ($reservations as $res) {
                                 <td><?= htmlspecialchars($item['description']) ?></td>
                             <?php endif; ?>
                             <td>
-                                <?php if (($filter === 'books' && $item['available'] > 0) || $filter !== 'books'): ?>
-                                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserveModal_<?= $materialId ?>">Reserve</button>
+                                <?php if ($filter === 'books' && $item['available'] > 0 || $filter !== 'books'): ?>
+                                    <?php if (!$hasGrantedAccess): ?>
+                                        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#requestModal_<?= $materialId ?>">
+                                            <?= ($filter === 'books') ? 'Reserve' : 'Request Access' ?>
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 
-                                <?php if ($hasReservations): ?>
-                                    <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#borrowModal_<?= $materialId ?>">Borrow</button>
-                                    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelReservationModal_<?= $materialId ?>">Cancel</button>
+                                <?php if ($hasPendingRequests): ?>
+                                    <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal_<?= $materialId ?>">
+                                        <?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal_<?= $materialId ?>">
+                                        <?= ($filter === 'books') ? 'Cancel' : 'Cancel Request' ?>
+                                    </button>
+                                <?php endif; ?>
+                                
+                                <?php if ($hasGrantedAccess && $filter !== 'books'): ?>
+                                    <span class="badge bg-success">Access Granted</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -273,16 +330,18 @@ foreach ($reservations as $res) {
             <?php foreach ($materials as $item):
                 $materialId = $item['id'];
                 $materialType = $filter === 'books' ? 'book' : ($filter === 'digital' ? 'digital' : 'research');
-                $reservationKey = $materialType.'_'.$materialId;
+                $requestKey = $materialType.'_'.$materialId;
                 ?>
-                <!-- Reserve Modal -->
-                <div class="modal fade" id="reserveModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="reserveModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <!-- Request Modal -->
+                <div class="modal fade" id="requestModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="requestModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog">
                         <form method="POST" class="modal-content">
                             <input type="hidden" name="material_type" value="<?= $materialType ?>">
                             <input type="hidden" name="material_id" value="<?= $materialId ?>">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="reserveModalLabel_<?= $materialId ?>">Reserve - <?= htmlspecialchars($item['title']) ?></h5>
+                                <h5 class="modal-title" id="requestModalLabel_<?= $materialId ?>">
+                                    <?= ($filter === 'books') ? 'Reserve' : 'Request Access' ?> - <?= htmlspecialchars($item['title']) ?>
+                                </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
@@ -296,76 +355,93 @@ foreach ($reservations as $res) {
                                 </select>
                             </div>
                             <div class="modal-footer">
-                                <button type="submit" name="action" value="Reserve" class="btn btn-primary">Reserve</button>
+                                <button type="submit" name="action" value="<?= ($filter === 'books') ? 'Reserve' : 'Request Access' ?>" class="btn btn-primary">
+                                    <?= ($filter === 'books') ? 'Reserve' : 'Request' ?>
+                                </button>
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             </div>
                         </form>
                     </div>
                 </div>
 
-                <!-- Borrow Modal -->
-                <div class="modal fade" id="borrowModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="borrowModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <!-- Approve Modal -->
+                <div class="modal fade" id="approveModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="approveModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog">
                         <form method="POST" class="modal-content">
                             <input type="hidden" name="material_type" value="<?= $materialType ?>">
                             <input type="hidden" name="material_id" value="<?= $materialId ?>">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="borrowModalLabel_<?= $materialId ?>">Borrow - <?= htmlspecialchars($item['title']) ?></h5>
+                                <h5 class="modal-title" id="approveModalLabel_<?= $materialId ?>">
+                                    <?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?> - <?= htmlspecialchars($item['title']) ?>
+                                </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <?php if (isset($reservationMap[$reservationKey])): ?>
+                                <?php if (isset($requestMap[$requestKey])): ?>
                                     <div class="mb-3">
                                         <label class="form-label">Select Customer:</label>
                                         <select name="customer_id" class="form-select" required>
                                             <option value="">Select Customer</option>
-                                            <?php foreach ($reservationMap[$reservationKey] as $reservation): ?>
-                                                <option value="<?= $reservation['customer_id'] ?>">
-                                                    <?= htmlspecialchars(getCustomerName($customers, $reservation['customer_id'])) ?>
-                                                </option>
+                                            <?php foreach ($requestMap[$requestKey] as $request): 
+                                                if ($request['action'] === 'Request Access' || $request['action'] === 'Reserve'): ?>
+                                                    <option value="<?= $request['customer_id'] ?>">
+                                                        <?= htmlspecialchars(getCustomerName($customers, $request['customer_id'])) ?>
+                                                    </option>
+                                                <?php endif; ?>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="alert alert-info">
-                                        <strong>Due Date:</strong> <?= date('F j, Y', strtotime('+7 days')) ?>
+                                        <strong>Access Duration:</strong> 7 days (until <?= date('F j, Y', strtotime('+7 days')) ?>)
+                                        <?php if ($filter !== 'books'): ?>
+                                            <br><small>Access will be automatically revoked after this period.</small>
+                                        <?php endif; ?>
                                     </div>
                                 <?php else: ?>
-                                    <div class="alert alert-warning">No reservations found for this material.</div>
+                                    <div class="alert alert-warning">No requests found for this material.</div>
                                 <?php endif; ?>
                             </div>
                             <div class="modal-footer">
-                                <button type="submit" name="action" value="Borrow" class="btn btn-success">Borrow</button>
+                                <button type="submit" name="action" value="<?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?>" class="btn btn-success">
+                                    <?= ($filter === 'books') ? 'Borrow' : 'Grant Access' ?>
+                                </button>
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             </div>
                         </form>
                     </div>
                 </div>
 
-                <!-- Cancel Reservation Modal -->
-                <div class="modal fade" id="cancelReservationModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="cancelReservationModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <!-- Cancel Modal -->
+                <div class="modal fade" id="cancelModal_<?= $materialId ?>" tabindex="-1" aria-labelledby="cancelModalLabel_<?= $materialId ?>" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog">
                         <form method="POST" class="modal-content">
                             <input type="hidden" name="material_type" value="<?= $materialType ?>">
                             <input type="hidden" name="material_id" value="<?= $materialId ?>">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="cancelReservationModalLabel_<?= $materialId ?>">Cancel Reservation - <?= htmlspecialchars($item['title']) ?></h5>
+                                <h5 class="modal-title" id="cancelModalLabel_<?= $materialId ?>">
+                                    <?= ($filter === 'books') ? 'Cancel Reservation' : 'Cancel Request' ?> - <?= htmlspecialchars($item['title']) ?>
+                                </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
                                 <label class="form-label">Select Customer:</label>
                                 <select name="customer_id" class="form-select" required>
                                     <option value="">Select Customer</option>
-                                    <?php if (isset($reservationMap[$reservationKey])): ?>
-                                        <?php foreach ($reservationMap[$reservationKey] as $reservation): ?>
-                                            <option value="<?= $reservation['customer_id'] ?>">
-                                                <?= htmlspecialchars(getCustomerName($customers, $reservation['customer_id'])) ?>
-                                            </option>
+                                    <?php if (isset($requestMap[$requestKey])): ?>
+                                        <?php foreach ($requestMap[$requestKey] as $request): 
+                                            if ($request['action'] === 'Request Access' || $request['action'] === 'Reserve'): ?>
+                                                <option value="<?= $request['customer_id'] ?>">
+                                                    <?= htmlspecialchars(getCustomerName($customers, $request['customer_id'])) ?>
+                                                </option>
+                                            <?php endif; ?>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </select>
                             </div>
                             <div class="modal-footer">
-                                <button type="submit" name="action" value="Cancel Reservation" class="btn btn-danger">Cancel Reservation</button>
+                                <button type="submit" name="action" value="<?= ($filter === 'books') ? 'Cancel Reservation' : 'Cancel Request' ?>" class="btn btn-danger">
+                                    <?= ($filter === 'books') ? 'Cancel Reservation' : 'Cancel Request' ?>
+                                </button>
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             </div>
                         </form>
