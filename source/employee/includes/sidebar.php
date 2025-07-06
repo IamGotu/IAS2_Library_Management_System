@@ -30,13 +30,13 @@
             <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-calendar me-2">‌</i>Borrowed Materials</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="../employee/borrow_history.php"><i class="fa-solid fa-history me-2">‌</i>Borrow History</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/renew_loans.php"><i class="fa-solid fa-calendar me-2">‌</i>Renew Loan Material</a>
         </li>
         <li class="nav-item">
             <a class="nav-link text-white" href="../employee/manage_events.php"><i class="fa-solid fa-calendar-days me-2">‌</i>Manage Events</a>
