@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 06, 2025 at 10:11 AM
+-- Generation Time: Jul 06, 2025 at 11:17 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -38,6 +38,58 @@ CREATE TABLE `activity_logs` (
   `timestamp` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `activity_logs`
+--
+
+INSERT INTO `activity_logs` (`log_id`, `user_id`, `user_role`, `full_name`, `action`, `timestamp`) VALUES
+(290, 1, 'employee', 'Employee Admin', 'Printed receipt for transaction #79 (Amount: ₱350.00)', '2025-07-06 16:17:42'),
+(291, 1, 'employee', 'Employee Admin', 'Printed receipt for transaction #77 (Amount: ₱50.00)', '2025-07-06 16:19:24'),
+(292, 1, 'employee', 'Employee Admin', 'Generated returned materials report: All', '2025-07-06 16:21:11'),
+(293, 1, 'employee', 'Employee Admin', 'Requested access to book ID 10 for customer ID 12', '2025-07-06 16:23:21'),
+(294, 1, 'employee', 'Employee Admin', 'Cancelled event #3: Local History Lecture', '2025-07-06 16:43:56'),
+(295, 1, 'employee', 'Employee Admin', 'Cancelled event #2: Creative Writing Workshop', '2025-07-06 16:44:02'),
+(296, 1, 'employee', 'Employee Admin', 'Added new event: asdasd', '2025-07-06 16:45:42'),
+(297, 1, 'employee', 'Employee Admin', 'Updated event #7: asdasd', '2025-07-06 16:45:57'),
+(298, 1, 'employee', 'Employee Admin', 'Deleted event #7: asdasd', '2025-07-06 16:46:24'),
+(299, 1, 'employee', 'Employee Admin', 'Deleted event #5: Book Club Meeting', '2025-07-06 16:46:29'),
+(300, 1, 'employee', 'Employee Admin', 'Deleted event #4: Children\'s Story Hour', '2025-07-06 16:46:31'),
+(301, 1, 'employee', 'Employee Admin', 'Deleted event #3: Local History Lecture', '2025-07-06 16:46:32'),
+(302, 1, 'employee', 'Employee Admin', 'Deleted event #1: Summer Reading Program', '2025-07-06 16:46:33'),
+(303, 1, 'employee', 'Employee Admin', 'Deleted event #2: Creative Writing Workshop', '2025-07-06 16:46:34'),
+(304, 1, 'employee', 'Employee Admin', 'Deleted event #6: Author Visit: Jane Doe', '2025-07-06 16:46:36'),
+(305, 1, 'employee', 'Employee Admin', 'Added new event: asda', '2025-07-06 16:46:57'),
+(306, 1, 'employee', 'Employee Admin', 'Submitted review for book \'book\' (Rating: 5/5)', '2025-07-06 16:57:46'),
+(307, 1, 'employee', 'Employee Admin', 'Ran maintenance task: Database Optimization', '2025-07-06 16:59:53'),
+(308, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:07:18'),
+(309, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:07:32'),
+(310, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:08:42'),
+(311, 1, 'employee', 'Employee Admin', 'Initiated Full Database backup (ID: BK-686A3EDEE68D7)', '2025-07-06 17:16:14');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `backup_history`
+--
+
+CREATE TABLE `backup_history` (
+  `id` int(11) NOT NULL,
+  `backup_id` varchar(50) NOT NULL,
+  `backup_type` varchar(50) NOT NULL,
+  `file_path` varchar(255) NOT NULL,
+  `file_size` decimal(10,2) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'Completed',
+  `initiated_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `backup_history`
+--
+
+INSERT INTO `backup_history` (`id`, `backup_id`, `backup_type`, `file_path`, `file_size`, `status`, `initiated_by`, `created_at`) VALUES
+(1, 'BK-686A3EDEE68D7', 'Full Database', '../../backups/database_2025-07-06_11-16-14.sql.gz', 0.00, 'Completed', 1, '2025-07-06 09:16:14');
+
 -- --------------------------------------------------------
 
 --
@@ -56,6 +108,29 @@ CREATE TABLE `book_genres` (
 
 INSERT INTO `book_genres` (`genre_id`, `genre_name`, `description`) VALUES
 (1, 'Science Fiction', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `book_reviews`
+--
+
+CREATE TABLE `book_reviews` (
+  `review_id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_role` enum('employee','customer') NOT NULL,
+  `rating` tinyint(1) NOT NULL CHECK (`rating` >= 1 and `rating` <= 5),
+  `review_text` text DEFAULT NULL,
+  `review_date` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `book_reviews`
+--
+
+INSERT INTO `book_reviews` (`review_id`, `book_id`, `user_id`, `user_role`, `rating`, `review_text`, `review_date`) VALUES
+(1, 11, 1, 'employee', 5, '', '2025-07-06 16:57:46');
 
 -- --------------------------------------------------------
 
@@ -90,6 +165,22 @@ INSERT INTO `customer` (`customer_id`, `first_name`, `middle_name`, `last_name`,
 (13, 'Member', '', 'Adult', '', '', 'Sinawal', 'General Santos City', '9500', '09514810124', '2001-06-14', 'memberadult@gmail.com', '$2y$10$0ArR231.1duc2WGrhyiYNu.2.lm5k.eQ6AMf8vsTRB2ylwh0kOoqS', 8, 'Active'),
 (14, 'Member', '', 'Senior', '', '', 'Sinawal', 'General Santos City', '9500', '09514810125', '1960-06-14', 'membersenior@gmail.com', '$2y$10$O3v63n6mVZbYS561wf0SieSa5i.gDuKyO/VI1htNHAJpsZ8ncMMz.', 9, 'Active'),
 (15, 'Member', '', 'Researcher', '', '', 'Sinawal', 'General Santos City', '9500', '09514810126', '2001-06-14', 'researcher@gmail.com', '$2y$10$d/2KorfA32oTbDVd9lNzje.8j.KOauaLkFGEAAQGjzu9Z3k9CKCyq', 10, 'Active');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `digital_media_reviews`
+--
+
+CREATE TABLE `digital_media_reviews` (
+  `review_id` int(11) NOT NULL,
+  `media_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_role` enum('employee','customer') NOT NULL,
+  `rating` tinyint(1) NOT NULL CHECK (`rating` >= 1 and `rating` <= 5),
+  `review_text` text DEFAULT NULL,
+  `review_date` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -130,6 +221,35 @@ INSERT INTO `employees` (`employee_id`, `first_name`, `middle_name`, `last_name`
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `events`
+--
+
+CREATE TABLE `events` (
+  `event_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `event_type` varchar(50) NOT NULL,
+  `start_datetime` datetime NOT NULL,
+  `end_datetime` datetime NOT NULL,
+  `location` varchar(100) NOT NULL,
+  `max_capacity` int(11) NOT NULL,
+  `registered_count` int(11) DEFAULT 0,
+  `status` enum('Upcoming','Ongoing','Completed','Cancelled') NOT NULL DEFAULT 'Upcoming',
+  `organizer` varchar(100) NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `events`
+--
+
+INSERT INTO `events` (`event_id`, `title`, `description`, `event_type`, `start_datetime`, `end_datetime`, `location`, `max_capacity`, `registered_count`, `status`, `organizer`, `created_at`, `updated_at`) VALUES
+(8, 'asda', 'asd', 'Book Reading', '2025-07-06 12:00:00', '2025-07-06 12:00:00', 'Main Hall', 20, 0, 'Upcoming', 'asd', '2025-07-06 16:46:57', '2025-07-06 16:46:57');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `material_books`
 --
 
@@ -143,16 +263,18 @@ CREATE TABLE `material_books` (
   `quantity` int(11) DEFAULT 1,
   `available` int(11) DEFAULT 1,
   `status` enum('Available','Archived') DEFAULT 'Available',
-  `genre` varchar(255) DEFAULT NULL
+  `genre` varchar(255) DEFAULT NULL,
+  `average_rating` decimal(3,1) DEFAULT 0.0,
+  `review_count` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `material_books`
 --
 
-INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`, `genre`) VALUES
-(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 12, 'Available', 'Science Fiction'),
-(11, 'book', 'book', 'book', 'book', '2002', 5, 5, 'Available', 'Science Fiction');
+INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`, `genre`, `average_rating`, `review_count`) VALUES
+(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 12, 'Available', 'Science Fiction', 0.0, 0),
+(11, 'book', 'book', 'book', 'book', '2002', 5, 5, 'Available', 'Science Fiction', 0.0, 0);
 
 -- --------------------------------------------------------
 
@@ -243,7 +365,8 @@ CREATE TABLE `material_transactions` (
 INSERT INTO `material_transactions` (`transaction_id`, `material_type`, `material_id`, `customer_id`, `action`, `status`, `action_date`, `due_date`, `return_date`, `late_fee`) VALUES
 (73, 'book', 10, 12, 'Borrow', 'Returned', '2025-07-06 14:23:41', '2025-07-13 00:00:00', '2025-07-06 09:21:59', 0.00),
 (77, 'book', 10, 13, 'Borrow', 'Returned', '2025-06-29 14:28:29', '2025-07-05 00:00:00', '2025-07-06 09:53:38', 50.00),
-(79, 'book', 10, 14, 'Borrow', 'Returned', '2025-06-15 14:51:08', '2025-06-29 08:51:08', '2025-07-06 10:08:17', 350.00);
+(79, 'book', 10, 14, 'Borrow', 'Returned', '2025-06-15 14:51:08', '2025-06-29 08:51:08', '2025-07-06 10:08:17', 350.00),
+(80, 'book', 10, 12, 'Reserve', 'Reserved', '2025-07-06 16:23:21', NULL, NULL, 0.00);
 
 -- --------------------------------------------------------
 
@@ -268,6 +391,22 @@ CREATE TABLE `payment_receipts` (
 INSERT INTO `payment_receipts` (`receipt_id`, `transaction_id`, `receipt_number`, `payment_amount`, `payment_method`, `receipt_content`, `created_at`) VALUES
 (1, 77, 'RCPT-000077', 50.00, 'cash', '\n        <h3>Library Payment Receipt</h3>\n        <p>Receipt #: RCPT-000077</p>\n        <p>Date: 2025-07-06 09:53:38</p>\n        <hr>\n        <p><strong>Customer:</strong> Member Adult</p>\n        <p><strong>Material:</strong> Sample book (book)</p>\n        <p><strong>Transaction ID:</strong> 77</p>\n        <hr>\n        <p><strong>Payment Method:</strong> cash</p>\n        <p><strong>Amount Paid:</strong> ₱100</p>\n        <p><strong>Late Fee:</strong> ₱50.00</p>\n        <hr>\n        <p>Thank you for your payment!</p>\n        <p>Library System</p>\n    ', '2025-07-06 15:53:38'),
 (2, 79, 'RCPT-000079', 350.00, 'cash', '\r\n        <h3>Library Payment Receipt</h3>\r\n        <p>Receipt #: RCPT-000079</p>\r\n        <p>Date: 2025-07-06 10:08:17</p>\r\n        <hr>\r\n        <p><strong>Customer:</strong> Member Senior</p>\r\n        <p><strong>Material:</strong> Sample book (book)</p>\r\n        <p><strong>Transaction ID:</strong> 79</p>\r\n        <hr>\r\n        <p><strong>Payment Method:</strong> cash</p>\r\n        <p><strong>Amount Paid:</strong> ₱354</p>\r\n        <p><strong>Late Fee:</strong> ₱350.00</p>\r\n        <hr>\r\n        <p>Thank you for your payment!</p>\r\n        <p>Library System</p>\r\n    ', '2025-07-06 16:08:17');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `research_material_reviews`
+--
+
+CREATE TABLE `research_material_reviews` (
+  `review_id` int(11) NOT NULL,
+  `research_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_role` enum('employee','customer') NOT NULL,
+  `rating` tinyint(1) NOT NULL CHECK (`rating` >= 1 and `rating` <= 5),
+  `review_text` text DEFAULT NULL,
+  `review_date` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -308,11 +447,25 @@ ALTER TABLE `activity_logs`
   ADD PRIMARY KEY (`log_id`);
 
 --
+-- Indexes for table `backup_history`
+--
+ALTER TABLE `backup_history`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `initiated_by` (`initiated_by`);
+
+--
 -- Indexes for table `book_genres`
 --
 ALTER TABLE `book_genres`
   ADD PRIMARY KEY (`genre_id`),
   ADD UNIQUE KEY `genre_name` (`genre_name`);
+
+--
+-- Indexes for table `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  ADD PRIMARY KEY (`review_id`),
+  ADD KEY `book_id` (`book_id`);
 
 --
 -- Indexes for table `customer`
@@ -324,6 +477,13 @@ ALTER TABLE `customer`
   ADD KEY `customer_role` (`role_id`);
 
 --
+-- Indexes for table `digital_media_reviews`
+--
+ALTER TABLE `digital_media_reviews`
+  ADD PRIMARY KEY (`review_id`),
+  ADD KEY `media_id` (`media_id`);
+
+--
 -- Indexes for table `employees`
 --
 ALTER TABLE `employees`
@@ -331,6 +491,12 @@ ALTER TABLE `employees`
   ADD UNIQUE KEY `email` (`email`),
   ADD UNIQUE KEY `phone_num` (`phone_num`),
   ADD KEY `employee_role` (`role_id`);
+
+--
+-- Indexes for table `events`
+--
+ALTER TABLE `events`
+  ADD PRIMARY KEY (`event_id`);
 
 --
 -- Indexes for table `material_books`
@@ -375,6 +541,13 @@ ALTER TABLE `payment_receipts`
   ADD KEY `transaction_id` (`transaction_id`);
 
 --
+-- Indexes for table `research_material_reviews`
+--
+ALTER TABLE `research_material_reviews`
+  ADD PRIMARY KEY (`review_id`),
+  ADD KEY `research_id` (`research_id`);
+
+--
 -- Indexes for table `roles`
 --
 ALTER TABLE `roles`
@@ -389,7 +562,13 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=290;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=312;
+
+--
+-- AUTO_INCREMENT for table `backup_history`
+--
+ALTER TABLE `backup_history`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `book_genres`
@@ -398,16 +577,34 @@ ALTER TABLE `book_genres`
   MODIFY `genre_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  MODIFY `review_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `customer`
 --
 ALTER TABLE `customer`
   MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
+-- AUTO_INCREMENT for table `digital_media_reviews`
+--
+ALTER TABLE `digital_media_reviews`
+  MODIFY `review_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
   MODIFY `employee_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+
+--
+-- AUTO_INCREMENT for table `events`
+--
+ALTER TABLE `events`
+  MODIFY `event_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `material_books`
@@ -437,13 +634,19 @@ ALTER TABLE `material_tags`
 -- AUTO_INCREMENT for table `material_transactions`
 --
 ALTER TABLE `material_transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=80;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=81;
 
 --
 -- AUTO_INCREMENT for table `payment_receipts`
 --
 ALTER TABLE `payment_receipts`
   MODIFY `receipt_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `research_material_reviews`
+--
+ALTER TABLE `research_material_reviews`
+  MODIFY `review_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -456,10 +659,28 @@ ALTER TABLE `roles`
 --
 
 --
+-- Constraints for table `backup_history`
+--
+ALTER TABLE `backup_history`
+  ADD CONSTRAINT `backup_history_ibfk_1` FOREIGN KEY (`initiated_by`) REFERENCES `employees` (`employee_id`);
+
+--
+-- Constraints for table `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  ADD CONSTRAINT `book_reviews_ibfk_1` FOREIGN KEY (`book_id`) REFERENCES `material_books` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `customer`
 --
 ALTER TABLE `customer`
   ADD CONSTRAINT `customer_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `digital_media_reviews`
+--
+ALTER TABLE `digital_media_reviews`
+  ADD CONSTRAINT `digital_media_reviews_ibfk_1` FOREIGN KEY (`media_id`) REFERENCES `material_digital_media` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `employees`
@@ -472,6 +693,12 @@ ALTER TABLE `employees`
 --
 ALTER TABLE `material_transactions`
   ADD CONSTRAINT `material_transactions_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customer` (`customer_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `research_material_reviews`
+--
+ALTER TABLE `research_material_reviews`
+  ADD CONSTRAINT `research_material_reviews_ibfk_1` FOREIGN KEY (`research_id`) REFERENCES `material_research` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
