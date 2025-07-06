@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 06, 2025 at 11:17 AM
+-- Generation Time: Jul 06, 2025 at 03:37 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -38,34 +38,6 @@ CREATE TABLE `activity_logs` (
   `timestamp` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `activity_logs`
---
-
-INSERT INTO `activity_logs` (`log_id`, `user_id`, `user_role`, `full_name`, `action`, `timestamp`) VALUES
-(290, 1, 'employee', 'Employee Admin', 'Printed receipt for transaction #79 (Amount: ₱350.00)', '2025-07-06 16:17:42'),
-(291, 1, 'employee', 'Employee Admin', 'Printed receipt for transaction #77 (Amount: ₱50.00)', '2025-07-06 16:19:24'),
-(292, 1, 'employee', 'Employee Admin', 'Generated returned materials report: All', '2025-07-06 16:21:11'),
-(293, 1, 'employee', 'Employee Admin', 'Requested access to book ID 10 for customer ID 12', '2025-07-06 16:23:21'),
-(294, 1, 'employee', 'Employee Admin', 'Cancelled event #3: Local History Lecture', '2025-07-06 16:43:56'),
-(295, 1, 'employee', 'Employee Admin', 'Cancelled event #2: Creative Writing Workshop', '2025-07-06 16:44:02'),
-(296, 1, 'employee', 'Employee Admin', 'Added new event: asdasd', '2025-07-06 16:45:42'),
-(297, 1, 'employee', 'Employee Admin', 'Updated event #7: asdasd', '2025-07-06 16:45:57'),
-(298, 1, 'employee', 'Employee Admin', 'Deleted event #7: asdasd', '2025-07-06 16:46:24'),
-(299, 1, 'employee', 'Employee Admin', 'Deleted event #5: Book Club Meeting', '2025-07-06 16:46:29'),
-(300, 1, 'employee', 'Employee Admin', 'Deleted event #4: Children\'s Story Hour', '2025-07-06 16:46:31'),
-(301, 1, 'employee', 'Employee Admin', 'Deleted event #3: Local History Lecture', '2025-07-06 16:46:32'),
-(302, 1, 'employee', 'Employee Admin', 'Deleted event #1: Summer Reading Program', '2025-07-06 16:46:33'),
-(303, 1, 'employee', 'Employee Admin', 'Deleted event #2: Creative Writing Workshop', '2025-07-06 16:46:34'),
-(304, 1, 'employee', 'Employee Admin', 'Deleted event #6: Author Visit: Jane Doe', '2025-07-06 16:46:36'),
-(305, 1, 'employee', 'Employee Admin', 'Added new event: asda', '2025-07-06 16:46:57'),
-(306, 1, 'employee', 'Employee Admin', 'Submitted review for book \'book\' (Rating: 5/5)', '2025-07-06 16:57:46'),
-(307, 1, 'employee', 'Employee Admin', 'Ran maintenance task: Database Optimization', '2025-07-06 16:59:53'),
-(308, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:07:18'),
-(309, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:07:32'),
-(310, 1, 'employee', 'Employee Admin', 'Failed to process maintenance action \'initiate_backup\': Database backup failed with error code: 2', '2025-07-06 17:08:42'),
-(311, 1, 'employee', 'Employee Admin', 'Initiated Full Database backup (ID: BK-686A3EDEE68D7)', '2025-07-06 17:16:14');
-
 -- --------------------------------------------------------
 
 --
@@ -88,7 +60,7 @@ CREATE TABLE `backup_history` (
 --
 
 INSERT INTO `backup_history` (`id`, `backup_id`, `backup_type`, `file_path`, `file_size`, `status`, `initiated_by`, `created_at`) VALUES
-(1, 'BK-686A3EDEE68D7', 'Full Database', '../../backups/database_2025-07-06_11-16-14.sql.gz', 0.00, 'Completed', 1, '2025-07-06 09:16:14');
+(4, 'BK-686A43AECA50D', 'Full Database', '../../backups/library_system_2025-07-06_11-36-46.sql.gz', 0.00, 'Completed', 1, '2025-07-06 09:36:46');
 
 -- --------------------------------------------------------
 
@@ -161,10 +133,10 @@ CREATE TABLE `customer` (
 --
 
 INSERT INTO `customer` (`customer_id`, `first_name`, `middle_name`, `last_name`, `purok`, `street`, `barangay`, `city`, `postal_code`, `phone_num`, `birthdate`, `email`, `password`, `role_id`, `status`) VALUES
-(12, 'Member', '', 'Youth', '', '', 'Sinawal', 'General Santos City', '9500', '09514810123', '2015-06-14', 'memberyouth@gmail.com', '$2y$10$fw9BGEVqlxQ8Qt3ooX3xj.lOiWxZ0Pj80sTuCmqRjC/NrP49LCTSC', 7, 'Active'),
-(13, 'Member', '', 'Adult', '', '', 'Sinawal', 'General Santos City', '9500', '09514810124', '2001-06-14', 'memberadult@gmail.com', '$2y$10$0ArR231.1duc2WGrhyiYNu.2.lm5k.eQ6AMf8vsTRB2ylwh0kOoqS', 8, 'Active'),
-(14, 'Member', '', 'Senior', '', '', 'Sinawal', 'General Santos City', '9500', '09514810125', '1960-06-14', 'membersenior@gmail.com', '$2y$10$O3v63n6mVZbYS561wf0SieSa5i.gDuKyO/VI1htNHAJpsZ8ncMMz.', 9, 'Active'),
-(15, 'Member', '', 'Researcher', '', '', 'Sinawal', 'General Santos City', '9500', '09514810126', '2001-06-14', 'researcher@gmail.com', '$2y$10$d/2KorfA32oTbDVd9lNzje.8j.KOauaLkFGEAAQGjzu9Z3k9CKCyq', 10, 'Active');
+(17, 'Member', '', 'Youth', '', '', 'Sinawal', 'General Santos City', '9500', '09514810123', '2010-06-16', 'memberyouth@gmail.com', '$2y$10$T9lZDrp3JGqeCjHBKrBn6.XtIjw7FX05Wg5uEddJA6.D.okZq2rzW', 7, 'Active'),
+(18, 'Member', '', 'Adult', '', '', 'Sinawal', 'General Santos City', '9500', '09514810124', '2001-06-16', 'memberadult@gmail.com', '$2y$10$O0efnkInQESn7ummpqu9JOGuRB5q09BT12jsCD7uxrKWkz11tnMZS', 8, 'Active'),
+(19, 'Member', '', 'Senior', '', '', 'Sinawal', 'General Santos City', '9500', '09514810125', '1965-06-14', 'membersenior@gmail.com', '$2y$10$xSjbKaTZEm/ZrypFuY9/Y.hBOjN9Qj5xR5g/fUoQGg3NRhI8IaawO', 9, 'Active'),
+(20, 'Member', '', 'Researcher', '', '', 'Sinawal', 'General Santos City', '9500', '09514810126', '2001-06-14', 'researcher@gmail.com', '$2y$10$/D5MMAPH8XTKXew8K.HIaOVeNowHxDMHLbQc45wr0L8gnmrf1wAAS', 10, 'Active');
 
 -- --------------------------------------------------------
 
@@ -273,7 +245,7 @@ CREATE TABLE `material_books` (
 --
 
 INSERT INTO `material_books` (`id`, `title`, `author`, `isbn`, `publisher`, `year_published`, `quantity`, `available`, `status`, `genre`, `average_rating`, `review_count`) VALUES
-(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 12, 'Available', 'Science Fiction', 0.0, 0),
+(10, 'Sample book', 'Sample book', 'Sample book', 'Sample book', '2001', 10, 9, 'Available', 'Science Fiction', 0.0, 0),
 (11, 'book', 'book', 'book', 'book', '2002', 5, 5, 'Available', 'Science Fiction', 0.0, 0);
 
 -- --------------------------------------------------------
@@ -363,10 +335,10 @@ CREATE TABLE `material_transactions` (
 --
 
 INSERT INTO `material_transactions` (`transaction_id`, `material_type`, `material_id`, `customer_id`, `action`, `status`, `action_date`, `due_date`, `return_date`, `late_fee`) VALUES
-(73, 'book', 10, 12, 'Borrow', 'Returned', '2025-07-06 14:23:41', '2025-07-13 00:00:00', '2025-07-06 09:21:59', 0.00),
-(77, 'book', 10, 13, 'Borrow', 'Returned', '2025-06-29 14:28:29', '2025-07-05 00:00:00', '2025-07-06 09:53:38', 50.00),
-(79, 'book', 10, 14, 'Borrow', 'Returned', '2025-06-15 14:51:08', '2025-06-29 08:51:08', '2025-07-06 10:08:17', 350.00),
-(80, 'book', 10, 12, 'Reserve', 'Reserved', '2025-07-06 16:23:21', NULL, NULL, 0.00);
+(87, 'digital', 7, 17, 'Request Access', 'Reserved', '2025-07-06 19:55:16', NULL, NULL, 0.00),
+(89, 'book', 10, 17, 'Borrow', 'Reserved', '2025-07-06 20:05:27', '2025-07-13 14:05:27', NULL, 0.00),
+(91, 'book', 10, 18, 'Borrow', 'Returned', '2025-07-06 20:08:47', '2025-07-13 14:08:47', '2025-07-06 14:30:52', 0.00),
+(93, 'book', 11, 17, 'Borrow', 'Returned', '2025-06-15 20:18:53', '2025-06-22 14:18:53', '2025-07-06 14:27:42', 700.00);
 
 -- --------------------------------------------------------
 
@@ -390,7 +362,8 @@ CREATE TABLE `payment_receipts` (
 
 INSERT INTO `payment_receipts` (`receipt_id`, `transaction_id`, `receipt_number`, `payment_amount`, `payment_method`, `receipt_content`, `created_at`) VALUES
 (1, 77, 'RCPT-000077', 50.00, 'cash', '\n        <h3>Library Payment Receipt</h3>\n        <p>Receipt #: RCPT-000077</p>\n        <p>Date: 2025-07-06 09:53:38</p>\n        <hr>\n        <p><strong>Customer:</strong> Member Adult</p>\n        <p><strong>Material:</strong> Sample book (book)</p>\n        <p><strong>Transaction ID:</strong> 77</p>\n        <hr>\n        <p><strong>Payment Method:</strong> cash</p>\n        <p><strong>Amount Paid:</strong> ₱100</p>\n        <p><strong>Late Fee:</strong> ₱50.00</p>\n        <hr>\n        <p>Thank you for your payment!</p>\n        <p>Library System</p>\n    ', '2025-07-06 15:53:38'),
-(2, 79, 'RCPT-000079', 350.00, 'cash', '\r\n        <h3>Library Payment Receipt</h3>\r\n        <p>Receipt #: RCPT-000079</p>\r\n        <p>Date: 2025-07-06 10:08:17</p>\r\n        <hr>\r\n        <p><strong>Customer:</strong> Member Senior</p>\r\n        <p><strong>Material:</strong> Sample book (book)</p>\r\n        <p><strong>Transaction ID:</strong> 79</p>\r\n        <hr>\r\n        <p><strong>Payment Method:</strong> cash</p>\r\n        <p><strong>Amount Paid:</strong> ₱354</p>\r\n        <p><strong>Late Fee:</strong> ₱350.00</p>\r\n        <hr>\r\n        <p>Thank you for your payment!</p>\r\n        <p>Library System</p>\r\n    ', '2025-07-06 16:08:17');
+(2, 79, 'RCPT-000079', 350.00, 'cash', '\r\n        <h3>Library Payment Receipt</h3>\r\n        <p>Receipt #: RCPT-000079</p>\r\n        <p>Date: 2025-07-06 10:08:17</p>\r\n        <hr>\r\n        <p><strong>Customer:</strong> Member Senior</p>\r\n        <p><strong>Material:</strong> Sample book (book)</p>\r\n        <p><strong>Transaction ID:</strong> 79</p>\r\n        <hr>\r\n        <p><strong>Payment Method:</strong> cash</p>\r\n        <p><strong>Amount Paid:</strong> ₱354</p>\r\n        <p><strong>Late Fee:</strong> ₱350.00</p>\r\n        <hr>\r\n        <p>Thank you for your payment!</p>\r\n        <p>Library System</p>\r\n    ', '2025-07-06 16:08:17'),
+(3, 93, 'RCPT-000093', 700.00, 'cash', '\r\n        <h3>Library Payment Receipt</h3>\r\n        <p>Receipt #: RCPT-000093</p>\r\n        <p>Date: 2025-07-06 14:27:42</p>\r\n        <hr>\r\n        <p><strong>Customer:</strong> Member Youth</p>\r\n        <p><strong>Material:</strong> book (book)</p>\r\n        <p><strong>Transaction ID:</strong> 93</p>\r\n        <hr>\r\n        <p><strong>Payment Method:</strong> cash</p>\r\n        <p><strong>Amount Paid:</strong> ₱700</p>\r\n        <p><strong>Late Fee:</strong> ₱700.00</p>\r\n        <hr>\r\n        <p>Thank you for your payment!</p>\r\n        <p>Library System</p>\r\n    ', '2025-07-06 20:27:42');
 
 -- --------------------------------------------------------
 
@@ -562,13 +535,13 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=312;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=349;
 
 --
 -- AUTO_INCREMENT for table `backup_history`
 --
 ALTER TABLE `backup_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `book_genres`
@@ -586,7 +559,7 @@ ALTER TABLE `book_reviews`
 -- AUTO_INCREMENT for table `customer`
 --
 ALTER TABLE `customer`
-  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `digital_media_reviews`
@@ -598,7 +571,7 @@ ALTER TABLE `digital_media_reviews`
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `employee_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `employee_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `events`
@@ -634,13 +607,13 @@ ALTER TABLE `material_tags`
 -- AUTO_INCREMENT for table `material_transactions`
 --
 ALTER TABLE `material_transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=81;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
 
 --
 -- AUTO_INCREMENT for table `payment_receipts`
 --
 ALTER TABLE `payment_receipts`
-  MODIFY `receipt_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `receipt_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `research_material_reviews`
