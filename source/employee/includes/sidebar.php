@@ -17,39 +17,118 @@
             echo '
             <li class="nav-item mb-2">
                 <a class="nav-link text-white" href="../employee/manage_users.php">
-                    <i class="fas fa-users me-2"></i>Manage Users
+                    <i class="fa-solid fa-users me-2"></i>Manage Users
+                </a>
+            </li>';
+        }
+        ?>
+
+        <?php
+        // Define which roles can access "Manage Materials"
+        $allowed_roles = [1, 2, 5];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/materials_management.php">
+                    <i class="fa-solid fa-book-open-reader me-2"></i>Manage Materials
+                </a>
+            </li>';
+        }
+        ?>
+
+        <?php
+        // Define which roles can access "Available Materials"
+        $allowed_roles = [1, 2, 3, 4];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/available_materials.php">
+                    <i class="fa-solid fa-list me-2"></i>Available Materials
+                </a>
+            </li>';
+        }
+        ?>
+
+        <?php
+        // Define which roles can access "Borrowed Materials"
+        $allowed_roles = [1, 2, 3, 4];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/borrowed_materials.php">
+                    <i class="fa-solid fa-calendar me-2"></i>Borrowed Materials
+                </a>
+            </li>';
+        }
+        ?>
+
+        <?php
+        // Define which roles can access "Paid Fees"
+        $allowed_roles = [1, 2, 3, 4];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/late_fees.php">
+                    <i class="fa-solid fa-money-check-dollar me-2"></i>Paid Fees
                 </a>
             </li>';
         }
         ?>
 
         <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/materials_management.php"><i class="fa-solid fa-book-open-reader me-2"></i>Manage Materials</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/available_materials.php"><i class="fas fa-list me-2"></i>Available Materials</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/borrowed_materials.php"><i class="fa-solid fa-calendar me-2">‌</i>Borrowed Materials</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/late_fees.php"><i class="fa-solid fa-money-check-dollar me-2">‌</i>Fees</a>
-        </li>
-        <li class="nav-item">
             <a class="nav-link text-white" href="../employee/borrow_history.php"><i class="fa-solid fa-history me-2">‌</i>Borrow History</a>
         </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/manage_events.php"><i class="fa-solid fa-calendar-days me-2">‌</i>Manage Events</a>
-        </li>
+
+        <?php
+        // Define which roles can access "Manage Events"
+        $allowed_roles = [1, 2, 3, 4];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/manage_events.php">
+                    <i class="fas fa-users me-2"></i>Manage Events
+                </a>
+            </li>';
+        }
+        ?>
+
         <li class="nav-item">
             <a class="nav-link text-white" href="../employee/rate.php"><i class="fa-solid fa-pen me-2">‌</i>Material Rating</a>
         </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/activity_logs.php"><i class="fa-solid fa-business-time me-2">‌</i>Activity Logs</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-white" href="../employee/system_maintenance.php"><i class="fa-solid fa-bug me-2">‌</i>System Maintenance</a>
-        </li>
+
+        <?php
+        // Define which roles can access "Activity Logs"
+        $allowed_roles = [1, 6];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/activity_logs.php">
+                    <i class="fa-solid fa-business-time me-2"></i>Activity Logs
+                </a>
+            </li>';
+        }
+        ?>
+
+        <?php
+        // Define which roles can access "System Maintenance"
+        $allowed_roles = [1, 6];
+
+        if (in_array($_SESSION['role_id'], $allowed_roles)) {
+            echo '
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white" href="../employee/system_maintenance.php">
+                    <i class="fa-solid fa-bug me-2"></i>System Maintenance
+                </a>
+            </li>';
+        }
+        ?>
+
         <li class="nav-item">
             <a class="nav-link text-white" href="./includes/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
         </li>
